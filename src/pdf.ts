@@ -1,7 +1,7 @@
 // Prints a self-contained HTML file to PDF with a locally installed Chromium-based browser
 // (Edge / Chrome / Chromium) driven over the DevTools protocol on a pipe. No network access:
 // every host name resolves to nothing and no port is opened.
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
@@ -50,6 +50,48 @@ export function findBrowser(configured?: string): string | undefined {
   return browserCandidates().find((p) => existsSync(p));
 }
 
+/** Every installed browser to try, the configured one first. */
+export function allBrowsers(configured?: string): string[] {
+  const list = configured && existsSync(configured) ? [configured] : [];
+  for (const p of browserCandidates()) if (existsSync(p) && !list.includes(p)) list.push(p);
+  return list;
+}
+
+/**
+ * Environment for the browser: without VS Code's own variables (the extension host runs with
+ * ELECTRON_RUN_AS_NODE etc., which are meaningless or harmful for another Chromium).
+ */
+function browserEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!/^(ELECTRON_|VSCODE_|CHROME_CRASHPAD)/i.test(k)) env[k] = v;
+  }
+  return env;
+}
+
+/**
+ * Browser policies that block background printing, read from the Windows registry
+ * (e.g. "Edge HeadlessModeEnabled = 0 (HKLM)"). Empty on other systems or when none are set.
+ */
+export async function blockingPolicies(): Promise<string[]> {
+  if (process.platform !== 'win32') return [];
+  const found: string[] = [];
+  for (const [name, key] of [
+    ['Edge', 'SOFTWARE\\Policies\\Microsoft\\Edge'],
+    ['Chrome', 'SOFTWARE\\Policies\\Google\\Chrome'],
+  ]) {
+    for (const hive of ['HKLM', 'HKCU']) {
+      const out = await new Promise<string>((resolve) =>
+        execFile('reg', ['query', `${hive}\\${key}`], { windowsHide: true, timeout: 5000 }, (_e, stdout) => resolve(stdout ?? '')),
+      );
+      for (const m of out.matchAll(/^\s*(HeadlessModeEnabled|RemoteDebuggingAllowed)\s+REG_DWORD\s+0x([0-9a-f]+)/gim)) {
+        found.push(`${name} ${m[1]} = ${parseInt(m[2], 16)} (${hive})`);
+      }
+    }
+  }
+  return found;
+}
+
 /** Flags shared by both print methods: no first-run UI, no background traffic, no name resolution. */
 function quietFlags(profile: string): string[] {
   return [
@@ -84,12 +126,14 @@ export function printPdfCli(browser: string, htmlFile: string, o: { outline: boo
     ...quietFlags(profile),
     '--no-pdf-header-footer',
     '--print-to-pdf-no-header',
+    // Windows builds only write their log (e.g. "disallowed by policy") when asked to.
+    '--enable-logging=stderr',
     ...(o.outline ? ['--generate-pdf-document-outline'] : []),
     `--print-to-pdf=${out}`,
     pathToFileURL(htmlFile).href,
   ];
   return new Promise((resolve, reject) => {
-    const child = spawn(browser, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(browser, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: browserEnv() });
     let log = '';
     const keep = (d: Buffer) => (log = (log + d).slice(-4000));
     child.stdout?.on('data', keep);
@@ -113,12 +157,9 @@ export function printPdfCli(browser: string, htmlFile: string, o: { outline: boo
 }
 
 function lastLines(log: string): string {
-  return log
-    .split(/\r?\n/)
-    .filter((l) => l.trim() && !/dbus|Fontconfig|GPU|gpu_|viz_|sandbox/i.test(l))
-    .slice(-3)
-    .join(' ')
-    .trim();
+  const lines = log.split(/\r?\n/).filter((l) => l.trim() && !/dbus|Fontconfig|GPU|gpu_|viz_|sandbox/i.test(l));
+  const telling = lines.filter((l) => /polic|disallow|admin|headless|denied|not allowed/i.test(l));
+  return (telling.length ? telling : lines).slice(-3).join(' ').trim();
 }
 
 class Cdp {
@@ -192,8 +233,8 @@ export class PdfPrinter {
     const profile = mkdtempSync(path.join(tmpdir(), 'md-studio-pdf-'));
     const child = spawn(
       browser,
-      ['--headless=new', '--remote-debugging-pipe', ...quietFlags(profile), 'about:blank'],
-      { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'], windowsHide: true },
+      ['--headless=new', '--remote-debugging-pipe', '--enable-logging=stderr', ...quietFlags(profile), 'about:blank'],
+      { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'], windowsHide: true, env: browserEnv() },
     );
     let stderr = '';
     child.stderr?.on('data', (d) => (stderr = (stderr + d).slice(-4000)));
@@ -209,7 +250,7 @@ export class PdfPrinter {
     const failed = new Promise<never>((_, reject) => {
       child.on('error', (e) => reject(new Error(`Cannot start ${browser}: ${e.message}`)));
       child.on('exit', (code) => {
-        const e = new Error(`Browser exited (code ${code}). ${stderr.trim().split('\n').slice(-3).join(' ')}`);
+        const e = new Error(`Browser exited (code ${code}). ${lastLines(stderr)}`);
         cdp.failAll(e);
         reject(e);
       });

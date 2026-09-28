@@ -171,8 +171,11 @@ ELK は 11 では別パッケージなので dagre で描かれます。
 - PC に入っている **Microsoft Edge** (Windows なら標準で入っています) か Google Chrome / Chromium を裏で起動して印刷します。
   見つからないときは `mdStudio.pdf.browserPath` にパスを設定してください。書き出し画面に使うブラウザが表示されます。
 - 印刷はブラウザの `--print-to-pdf` 機能で行い、だめなら DevTools プロトコルで再試行します。
-  会社のポリシーで Edge のヘッドレス起動 (`HeadlessModeEnabled`) が禁止されているとどちらも使えません。
-  失敗時のメッセージに従い `edge://policy` を確認するか、`mdStudio.pdf.browserPath` で Chrome を指定してください。
+  入っている Edge / Chrome を順に試します。
+- 会社のポリシーでブラウザの裏での起動 (`HeadlessModeEnabled`) が禁止されている PC では、印刷用に整えたページを
+  Edge で開いて印刷ダイアログを出します。プリンターに「PDF として保存」を選び、「詳細設定」の「ヘッダーとフッター」を
+  オフにして保存してください (用紙・余白・ページ番号は自動で設定済み。この方法では目次のページ番号としおりは付きません)。
+  そのとき見つかったポリシー (レジストリの `HeadlessModeEnabled` / `RemoteDebuggingAllowed`) は書き出し画面に表示されます。
 - 日本語の文書は `lang="ja"` で出力し、日本語フォントを優先します (PDF にはフォントが埋め込まれます)。
   HTML は開く PC に入っているフォントで表示されます。
 - ブラウザはすべてのホスト名を解決しない設定で起動するので、外部へは通信しません。

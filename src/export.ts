@@ -2,8 +2,10 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { bodyFontFamily, detectLang, exportDocument, exportPanelHtml, pageCss, tocHtml } from './html';
-import { PdfPrinter, findBrowser, namedDestinationPages, printPdfCli } from './pdf';
+import { PdfPrinter, allBrowsers, blockingPolicies, findBrowser, namedDestinationPages, printPdfCli } from './pdf';
+import { spawn } from 'node:child_process';
 import type { ExportOptions, ExporterToHost, FontPreset, Heading, HostToExporter, ImageMode } from './protocol';
 import { SECTION, editorFont, resolveMermaid, toSetup } from './settings';
 import type { Log } from './log';
@@ -172,50 +174,68 @@ async function resolveImages(
   return { map, count: Object.keys(map).length };
 }
 
+/** Background printing is not possible on this PC (every browser and method failed). */
+class PrintUnavailableError extends Error {
+  constructor(
+    readonly attempts: string[],
+    readonly policies: string[],
+  ) {
+    super(
+      policies.length
+        ? `Company policy does not allow background printing (${policies.join(', ')}).`
+        : 'The browser did not print in the background.',
+    );
+  }
+}
+
 /**
- * Prints with `--print-to-pdf` first and falls back to the DevTools protocol; the reasons of both
- * failures are reported, since company policies can turn off either (or headless mode altogether).
+ * Prints with `--print-to-pdf` first and falls back to the DevTools protocol, for each installed
+ * browser in turn (company policies can turn off either method, or headless mode altogether).
  */
 class BrowserPrint {
-  private mode: 'cli' | 'cdp' = 'cli';
-  private printer: PdfPrinter | undefined;
-  private cliError: Error | undefined;
+  private chosen: { browser: string; mode: 'cli' | 'cdp' } | undefined;
+  private readonly printers = new Map<string, PdfPrinter>();
 
   constructor(
-    private readonly browser: string,
+    private readonly browsers: string[],
     private readonly outline: boolean,
     private readonly log: Log,
   ) {}
 
+  private async printWith(browser: string, mode: 'cli' | 'cdp', file: string): Promise<Buffer> {
+    if (mode === 'cli') return printPdfCli(browser, file, { outline: this.outline });
+    let printer = this.printers.get(browser);
+    if (!printer) {
+      printer = await PdfPrinter.launch(browser);
+      this.printers.set(browser, printer);
+    }
+    return printer.print(file, { printBackground: true, preferCSSPageSize: true, generateDocumentOutline: this.outline });
+  }
+
   async print(file: string): Promise<Buffer> {
-    if (this.mode === 'cli') {
-      try {
-        const pdf = await printPdfCli(this.browser, file, { outline: this.outline });
-        this.log.info(`export: printed with ${this.browser} (--print-to-pdf)`);
-        return pdf;
-      } catch (e) {
-        this.cliError = e as Error;
-        this.log.warn(`export: --print-to-pdf failed: ${(e as Error).message}; trying the DevTools protocol`);
-        this.mode = 'cdp';
+    if (this.chosen) return this.printWith(this.chosen.browser, this.chosen.mode, file);
+    const attempts: string[] = [];
+    for (const browser of this.browsers) {
+      for (const mode of ['cli', 'cdp'] as const) {
+        try {
+          const pdf = await this.printWith(browser, mode, file);
+          this.chosen = { browser, mode };
+          this.log.info(`export: printed with ${browser} (${mode === 'cli' ? '--print-to-pdf' : 'DevTools protocol'})`);
+          return pdf;
+        } catch (e) {
+          const line = `${path.basename(browser)} ${mode === 'cli' ? '--print-to-pdf' : 'DevTools'}: ${(e as Error).message}`;
+          attempts.push(line);
+          this.log.warn(`export: ${line}`);
+        }
       }
     }
-    try {
-      this.printer ??= await PdfPrinter.launch(this.browser);
-      const pdf = await this.printer.print(file, { printBackground: true, preferCSSPageSize: true, generateDocumentOutline: this.outline });
-      this.log.info(`export: printed with ${await this.printer.version()} (DevTools protocol)`);
-      return pdf;
-    } catch (e) {
-      throw new Error(
-        `Could not print the PDF with ${this.browser}. ` +
-          `--print-to-pdf: ${this.cliError?.message ?? 'not tried'} / DevTools: ${(e as Error).message}. ` +
-          'If Edge is managed by your company, open edge://policy and check HeadlessModeEnabled and RemoteDebuggingAllowed, ' +
-          'or set mdStudio.pdf.browserPath to another browser (e.g. Chrome). Exporting HTML and printing it from the browser also works.',
-      );
-    }
+    const policies = await blockingPolicies();
+    for (const p of policies) this.log.warn(`export: policy ${p}`);
+    throw new PrintUnavailableError(attempts, policies);
   }
 
   async close(): Promise<void> {
-    await this.printer?.close();
+    for (const p of this.printers.values()) await p.close();
   }
 }
 
@@ -398,6 +418,31 @@ class ExportPanel {
     );
   }
 
+  /**
+   * Last resort when the browser may not print in the background: open the print-ready page in the
+   * browser with its print dialog; the user picks "Save as PDF". Paper, margins and page numbers
+   * still come from the page's CSS; the contents page has links but no page numbers.
+   */
+  private async printInBrowser(browser: string, html: string, name: string, why: PrintUnavailableError): Promise<void> {
+    const dir = mkdtempSync(path.join(tmpdir(), 'md-studio-print-'));
+    const file = path.join(dir, name.replace(/\.[^.]+$/, '') + '.html');
+    const printScript = `<script>addEventListener('load', () => setTimeout(() => print(), 300));</script>`;
+    writeFileSync(file, html.replace(/<span class="toc-page toc-page--placeholder">000<\/span>/g, '').replace('</body>', `${printScript}\n</body>`));
+    const child = spawn(browser, ['--new-window', pathToFileURL(file).href], { detached: true, stdio: 'ignore', windowsHide: false });
+    child.on('error', () => void vscode.env.openExternal(vscode.Uri.file(file)));
+    child.unref();
+    this.log.warn(`export: background printing unavailable; opened ${file} in ${browser} for printing`);
+    this.post({
+      type: 'result',
+      ok: false,
+      message:
+        `${why.message} The document was opened in ${path.basename(browser, '.exe')} with the print dialog: ` +
+        'choose "Save as PDF" as the printer, turn off "Headers and footers" under "More settings", and save. ' +
+        '(In this mode the contents page has no page numbers and there are no bookmarks.)',
+      problems: [...why.policies.map((p) => `Policy: ${p}`), ...why.attempts],
+    });
+  }
+
   private async runExport(options: ExportOptions, targetPath: string): Promise<void> {
     const target = vscode.Uri.file(targetPath);
     const name = path.posix.basename(this.doc.uri.path);
@@ -432,8 +477,8 @@ class ExportPanel {
         bytes = Buffer.from(html, 'utf8');
       } else {
         this.post({ type: 'status', message: 'Printing PDF…' });
-        const browser = findBrowser(this.browserSetting());
-        if (!browser) {
+        const browsers = allBrowsers(this.browserSetting());
+        if (browsers.length === 0) {
           throw new Error(
             'PDF export needs Microsoft Edge, Google Chrome or Chromium. Install one or set mdStudio.pdf.browserPath.',
           );
@@ -458,11 +503,18 @@ class ExportPanel {
           });
         };
         const dir = mkdtempSync(path.join(tmpdir(), 'md-studio-export-'));
-        const printer = new BrowserPrint(browser, options.pdf.bookmarks, this.log);
+        const printer = new BrowserPrint(browsers, options.pdf.bookmarks, this.log);
         try {
           const file = path.join(dir, 'document.html');
           writeFileSync(file, build());
-          let pdf = await printer.print(file);
+          let pdf: Buffer;
+          try {
+            pdf = await printer.print(file);
+          } catch (e) {
+            if (!(e instanceof PrintUnavailableError)) throw e;
+            await this.printInBrowser(browsers[0], build(), name, e);
+            return;
+          }
           if (options.pdf.toc && r.headings.length > 0) {
             // Second pass with the page numbers the first pass produced (layout is identical).
             const found = namedDestinationPages(pdf);

@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.2.1
+## 0.2.2
 
 - PDF export works where Edge refuses remote debugging (company policy): printing uses the browser's `--print-to-pdf` first and falls back to the DevTools protocol. Paper, margins, page numbers and header are CSS `@page` rules, so both give the same pages. A failure now explains what to check (`edge://policy`).
+- If no browser may print in the background (e.g. `HeadlessModeEnabled` policy), every installed browser is tried, the blocking policies are read from the registry and shown, and the print-ready page is opened in Edge with the print dialog (Save as PDF).
 - Export font: same as the editor (VS Code `markdown.preview.fontFamily`), Yu Gothic, Meiryo, BIZ UDPGothic, Yu Mincho, BIZ UDPMincho or any font names; PDF text size. Diagrams are drawn with the export font.
 - Japanese documents are exported with `lang="ja"` and Japanese fallback fonts (also for code), so Japanese text never falls back to a Chinese font.
 
