@@ -1,5 +1,6 @@
 import type { EditorSettings, EditorToHost, HostToEditor, ToolbarCommand } from '../protocol';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion, type MermaidApi } from './mermaidLoader';
+import { closeLightbox, lightboxOpen, showLightbox } from './lightbox';
 
 interface VditorInstance {
   getValue(): string;
@@ -287,6 +288,96 @@ document.addEventListener('click', (e) => {
     post({ type: 'openLink', href });
   }
 }, true);
+
+// --- Zoom (Ctrl/Cmd + wheel) ---------------------------------------------------------------------
+let zoom = settings.zoom > 0 ? settings.zoom : 1;
+let zoomBadge: HTMLDivElement | undefined;
+let zoomBadgeTimer: ReturnType<typeof setTimeout> | undefined;
+let zoomSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+function applyZoom(show: boolean): void {
+  document.documentElement.style.setProperty('--md-zoom', String(zoom));
+  if (!show) return;
+  if (!zoomBadge) {
+    zoomBadge = document.createElement('div');
+    zoomBadge.className = 'md-zoom-badge';
+    zoomBadge.innerHTML = '<span></span><button type="button" title="Reset zoom (Ctrl+0)">Reset</button>';
+    zoomBadge.querySelector('button')!.addEventListener('click', () => setZoom(1));
+    document.body.appendChild(zoomBadge);
+  }
+  zoomBadge.querySelector('span')!.textContent = `${Math.round(zoom * 100)}%`;
+  zoomBadge.classList.add('md-zoom-badge--visible');
+  if (zoomBadgeTimer) clearTimeout(zoomBadgeTimer);
+  zoomBadgeTimer = setTimeout(() => zoomBadge?.classList.remove('md-zoom-badge--visible'), 1500);
+}
+
+function setZoom(value: number): void {
+  zoom = Math.round(Math.min(Math.max(value, 0.5), 3) * 100) / 100;
+  applyZoom(true);
+  if (zoomSaveTimer) clearTimeout(zoomSaveTimer);
+  zoomSaveTimer = setTimeout(() => post({ type: 'zoom', value: zoom }), 400);
+}
+
+window.addEventListener('wheel', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || lightboxOpen()) return;
+  e.preventDefault();
+  setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+}, { passive: false });
+
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === '0' && !lightboxOpen()) {
+    e.preventDefault();
+    setZoom(1);
+  }
+}, true);
+applyZoom(false);
+
+// --- Click to enlarge: images, and diagrams through a hover button -----------------------------
+function markdownSrc(img: HTMLImageElement): string | undefined {
+  const src = img.getAttribute('src') ?? '';
+  if (src.startsWith(settings.linkBase)) return src.slice(settings.linkBase.length);
+  return undefined;
+}
+
+document.addEventListener('click', (e) => {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const target = e.target as HTMLElement;
+  const img = target.closest<HTMLImageElement>('.vditor-reset img');
+  if (img && img.naturalWidth > 0) {
+    const src = markdownSrc(img);
+    showLightbox(img, {
+      title: img.getAttribute('alt') || src || '',
+      onOpen: src ? () => post({ type: 'openLink', href: src }) : undefined,
+    });
+    return;
+  }
+  const expand = target.closest('.md-diagram-expand');
+  if (expand) {
+    e.preventDefault();
+    e.stopPropagation();
+    const svg = expand.parentElement?.querySelector<SVGSVGElement>('svg');
+    if (svg) showLightbox(svg, { title: 'Diagram' });
+  }
+}, true);
+
+// Add an "enlarge" button to every rendered diagram.
+new MutationObserver(() => {
+  for (const d of document.querySelectorAll<HTMLElement>('.language-mermaid[data-processed="true"]')) {
+    if (d.querySelector(':scope > svg') && !d.querySelector(':scope > .md-diagram-expand')) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'md-diagram-expand';
+      b.title = 'Enlarge diagram';
+      b.contentEditable = 'false';
+      b.textContent = '\u2922';
+      d.appendChild(b);
+    }
+  }
+}).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-processed'] });
+
+window.addEventListener('message', (e: MessageEvent<HostToEditor>) => {
+  if (e.data?.type === 'update') closeLightbox();
+});
 
 new MutationObserver(() => {
   if (!vditor) return;

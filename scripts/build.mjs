@@ -15,7 +15,8 @@ const configs = [
   },
   {
     ...common,
-    entryPoints: { editor: 'src/webview/editor.ts', exporter: 'src/webview/exporter.ts' },
+    entryPoints: { editor: 'src/webview/editor.ts', export: 'src/webview/exportPanel.ts' },
+    loader: { '.svg': 'text' },
     outdir: 'dist/webview',
     platform: 'browser',
     format: 'iife',

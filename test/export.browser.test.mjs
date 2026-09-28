@@ -8,7 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from './browser/server.mjs';
 import { launch, offlinePage, fixtures, readFixtureImages } from './browser/util.mjs';
-import { exportDocument } from '../src/html.ts';
+import { exportDocument, tocHtml } from '../src/html.ts';
+import { PdfPrinter, namedDestinationPages } from '../src/pdf.ts';
 
 let srv, browser;
 before(async () => {
@@ -28,17 +29,17 @@ async function runExport(markdown, mermaidConfig) {
   const { page, external, errors } = await offlinePage(browser, srv.origin);
   await page.goto(`${srv.origin}/exporter.html`);
   await page.waitForFunction(() => window.__posted.some((m) => m.type === 'ready'));
-  await page.evaluate((md) => window.__send({ type: 'render', markdown: md, title: 't' }), markdown);
-  await page.waitForFunction(() => window.__posted.some((m) => ['needImages', 'done', 'failed'].includes(m.type)), null, { timeout: 30000 });
+  await page.evaluate((md) => window.__send({ type: 'render', markdown: md, highlight: true }), markdown);
+  await page.waitForFunction(() => window.__posted.some((m) => ['needImages', 'rendered', 'failed'].includes(m.type)), null, { timeout: 30000 });
   const need = await page.evaluate(() => window.__posted.find((m) => m.type === 'needImages'));
   if (need) {
     const images = await readFixtureImages(need.srcs);
     await page.evaluate((images) => window.__send({ type: 'images', images }), images);
   }
-  await page.waitForFunction(() => window.__posted.some((m) => ['done', 'failed'].includes(m.type)), null, { timeout: 30000 });
-  const result = await page.evaluate(() => window.__posted.find((m) => ['done', 'failed'].includes(m.type)));
+  await page.waitForFunction(() => window.__posted.some((m) => ['rendered', 'failed'].includes(m.type)), null, { timeout: 30000 });
+  const result = await page.evaluate(() => window.__posted.find((m) => ['rendered', 'failed'].includes(m.type)));
   await page.close();
-  assert.equal(result.type, 'done', result.message);
+  assert.equal(result.type, 'rendered', result.message);
   assert.deepEqual(external, []);
   return { result, errors };
 }
@@ -51,7 +52,8 @@ test('sample.md exports to a self-contained file', async () => {
   assert.deepEqual(result.problems, []);
 
   const css = await readFile(new URL('../media/vendor/vditor/dist/js/highlight.js/styles/github.min.css', import.meta.url), 'utf8');
-  const html = exportDocument({ title: 'Sample', body: result.html, codeCss: css, maxWidth: 1180, generator: 'test' });
+  const toc = tocHtml(result.headings, { depth: 3, title: 'Contents', className: 'toc-sidebar' });
+  const html = exportDocument({ title: 'Sample', body: result.html, codeCss: { light: css, dark: '' }, maxWidth: 1180, generator: 'test', theme: 'light', toc: { html: toc, position: 'sidebar' } });
   assert.doesNotMatch(html, /<script/i);
   const dir = await mkdtemp(join(tmpdir(), 'md-studio-'));
   const file = join(dir, 'out.html');
@@ -66,6 +68,7 @@ test('sample.md exports to a self-contained file', async () => {
     svgs: document.querySelectorAll('.mermaid > svg').length,
     codeBlocksLeft: document.querySelectorAll('code.language-mermaid').length,
     ids: [...document.querySelectorAll('h1,h2,h3')].map((h) => h.id),
+    tocLinks: document.querySelectorAll('nav.toc a').length,
     missing: [...document.querySelectorAll('a[href^="#"]')]
       .map((a) => decodeURIComponent(a.getAttribute('href').slice(1)))
       .filter((id) => !document.getElementById(id)),
@@ -80,6 +83,7 @@ test('sample.md exports to a self-contained file', async () => {
   assert.deepEqual(info.missing, []);
   assert.deepEqual(info.ids, ['md-studio-sample', '37-mermaid-with-frontmatter', 'mermaid-default', '日本語の見出し', 'duplicate', 'duplicate-1']);
   assert.ok(info.highlighted > 0);
+  assert.equal(info.tocLinks, 6);
   assert.deepEqual(external, []);
 });
 
@@ -101,4 +105,39 @@ test('settings theme applies, frontmatter wins', async () => {
   // dark theme background of nodes vs forest's green
   assert.match(first, /#1f2020|#1F2020/);
   assert.match(second, /#cde498/i);
+});
+
+test('PDF: contents page with page numbers, bookmarks, offline', async () => {
+  const markdown = await readFile(join(fixtures, 'sample.md'), 'utf8');
+  const long = markdown + '\n\n' + Array.from({ length: 40 }, (_, i) => `## Section ${i + 1}\n\n${'Lorem ipsum dolor sit amet. '.repeat(30)}\n`).join('\n');
+  const { result } = await runExport(long);
+  const css = await readFile(new URL('../media/vendor/vditor/dist/js/highlight.js/styles/github.min.css', import.meta.url), 'utf8');
+  const build = (pages) =>
+    exportDocument({
+      title: 'Sample', body: result.html, codeCss: { light: css, dark: '' }, maxWidth: 0, generator: 'test', theme: 'light', print: true,
+      toc: { position: 'page', html: tocHtml(result.headings, { depth: 2, title: 'Contents', className: 'toc-pdf', pages, placeholder: !pages }) + '<div class="toc-page-break"></div>' },
+    });
+  const dir = await mkdtemp(join(tmpdir(), 'md-studio-pdf-'));
+  const file = join(dir, 'doc.html');
+  const exe = process.env.CHROMIUM_PATH ?? browser.process?.()?.spawnfile ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+  const printer = await PdfPrinter.launch(exe);
+  try {
+    const opts = { paperWidth: 8.27, paperHeight: 11.69, printBackground: true, generateDocumentOutline: true, displayHeaderFooter: true,
+      headerTemplate: '<span></span>', footerTemplate: '<div style="font-size:8pt;width:100%;text-align:center"><span class="pageNumber"></span></div>', marginTop: 0.6, marginBottom: 0.6, marginLeft: 0.6, marginRight: 0.6 };
+    await writeFile(file, build());
+    const pass1 = await printer.print(file, opts);
+    const pages = namedDestinationPages(pass1);
+    assert.ok(pages.size >= 40, `named destinations: ${pages.size}`);
+    assert.ok(pages.get('md-studio-sample') >= 2, 'contents pages come first');
+    assert.ok(pages.get('section-40') > pages.get('section-1'));
+    await writeFile(file, build(pages));
+    const pass2 = await printer.print(file, opts);
+    assert.deepEqual([...namedDestinationPages(pass2)], [...pages], 'page numbers do not move in the second pass');
+    const s = pass2.toString('latin1');
+    assert.match(s, /\/Outlines/);
+    assert.ok((s.match(/\/Type\s*\/Page\b/g) ?? []).length >= 5);
+    await writeFile(join(dir, 'out.pdf'), pass2);
+  } finally {
+    await printer.close();
+  }
 });

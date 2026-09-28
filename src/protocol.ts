@@ -18,6 +18,8 @@ export interface EditorSettings {
   toolbar: boolean;
   outline: boolean;
   font: EditorFont;
+  /** Content zoom factor (Ctrl+wheel), 1 = 100 %. */
+  zoom: number;
   mermaid: MermaidSetup;
 }
 
@@ -52,16 +54,60 @@ export type EditorToHost =
   | { type: 'saveImage'; requestId: number; name: string; mime: string; data: string }
   | { type: 'openLink'; href: string }
   | { type: 'command'; command: ToolbarCommand }
+  | { type: 'zoom'; value: number }
   | { type: 'mermaidLoaded'; version: string }
   | { type: 'log'; level: 'info' | 'warn' | 'error'; message: string };
 
+export type ImageMode = 'embed' | 'link' | 'copy';
+export type PaperSize = 'A4' | 'A3' | 'B5' | 'Letter' | 'Legal';
+
+/** Everything the export panel lets the user choose. Defaults come from mdStudio.export.* / mdStudio.pdf.*. */
+export interface ExportOptions {
+  format: 'html' | 'pdf';
+  /** HTML: embed as data URIs / keep links (rewritten relative to the output) / copy next to the output. */
+  images: ImageMode;
+  highlight: boolean;
+  tocDepth: number;
+  tocTitle: string;
+  openAfter: boolean;
+  html: {
+    toc: 'none' | 'top' | 'sidebar';
+    theme: 'light' | 'dark' | 'auto';
+    maxWidth: number;
+  };
+  pdf: {
+    toc: boolean;
+    bookmarks: boolean;
+    paper: PaperSize;
+    landscape: boolean;
+    margin: 'narrow' | 'normal' | 'wide';
+    pageNumbers: boolean;
+    headerTitle: boolean;
+  };
+}
+
+export interface Heading {
+  level: number;
+  id: string;
+  text: string;
+}
+
 export type HostToExporter =
-  | { type: 'render'; markdown: string; title: string }
-  | { type: 'images'; images: Record<string, string> };
+  | { type: 'init'; fileName: string; options: ExportOptions; target: string; browser: string | null }
+  | { type: 'target'; target: string }
+  | { type: 'start' }
+  | { type: 'render'; markdown: string; highlight: boolean }
+  | { type: 'images'; images: Record<string, string> }
+  | { type: 'status'; message: string }
+  | { type: 'result'; ok: boolean; message: string; problems: string[] };
 
 export type ExporterToHost =
   | { type: 'ready' }
+  | { type: 'browse'; format: 'html' | 'pdf'; target: string }
+  | { type: 'export'; options: ExportOptions; target: string }
+  | { type: 'saveDefaults'; options: ExportOptions }
+  | { type: 'openResult'; action: 'open' | 'reveal' }
   | { type: 'needImages'; srcs: string[] }
-  | { type: 'done'; html: string; mermaidVersion: string; diagrams: number; problems: string[] }
+  | { type: 'rendered'; html: string; headings: Heading[]; mermaidVersion: string; diagrams: number; problems: string[] }
   | { type: 'failed'; message: string }
   | { type: 'log'; level: 'info' | 'warn' | 'error'; message: string };

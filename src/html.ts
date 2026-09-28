@@ -1,5 +1,5 @@
 // HTML for the webviews and for exported files. No `vscode` import so it can be used from tests.
-import type { EditorSettings, ExportSettings } from './protocol';
+import type { EditorSettings, ExportSettings, Heading } from './protocol';
 
 export function nonce(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -57,19 +57,20 @@ export function editorHtml(o: {
 </html>`;
 }
 
-export function exporterHtml(o: { cspSource: string; scriptUrl: string; settings: ExportSettings }): string {
+export function exportPanelHtml(o: { cspSource: string; scriptUrl: string; cssUrl: string; settings: ExportSettings }): string {
   const n = nonce();
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${attr(csp(o.cspSource, n, false))}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${attr(o.cssUrl)}">
 <title>MD Studio export</title>
-<style>body{background:#fff;color:#1f2328;font:14px sans-serif}#status{padding:12px}#out{position:absolute;left:0;top:40px;width:1180px;opacity:.02;pointer-events:none}</style>
 </head>
 <body>
-<div id="status">Exporting to HTML&hellip;</div>
-<main id="out" class="markdown-body"></main>
+<div id="app"></div>
+<main id="out" class="markdown-body" aria-hidden="true"></main>
 <script type="application/json" id="md-studio-settings">${jsonForScript(o.settings)}</script>
 <script nonce="${n}" src="${attr(o.scriptUrl)}"></script>
 </body>
@@ -80,8 +81,58 @@ function escapeText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/**
+ * Table of contents. `pages` adds right-aligned page numbers (PDF); `placeholder` reserves the same
+ * space with invisible digits so the first PDF pass lays out exactly like the final one.
+ */
+export function tocHtml(
+  headings: Heading[],
+  o: { depth: number; title: string; className: string; pages?: Map<string, number>; placeholder?: boolean },
+): string {
+  const items = headings.filter((h) => h.level <= o.depth && h.id);
+  if (items.length === 0) return '';
+  const min = Math.min(...items.map((h) => h.level));
+  const lis = items
+    .map((h) => {
+      const page = o.pages?.get(h.id);
+      const num = o.placeholder ? '<span class="toc-page toc-page--placeholder">000</span>' : page ? `<span class="toc-page">${page}</span>` : '';
+      const dots = o.pages || o.placeholder ? '<span class="toc-dots"></span>' : '';
+      return `<li class="toc-l${h.level - min + 1}"><a href="#${attr(h.id)}"><span class="toc-text">${escapeText(h.text)}</span>${dots}${num}</a></li>`;
+    })
+    .join('\n');
+  return `<nav class="toc ${o.className}" aria-label="${attr(o.title)}">
+<div class="toc-title">${escapeText(o.title)}</div>
+<ul>
+${lis}
+</ul>
+</nav>`;
+}
+
+export interface DocumentParts {
+  title: string;
+  body: string;
+  /** github.min.css and github-dark.min.css (highlight.js); empty strings when highlighting is off. */
+  codeCss: { light: string; dark: string };
+  generator: string;
+  theme: 'light' | 'dark' | 'auto';
+  maxWidth: number;
+  toc?: { html: string; position: 'top' | 'sidebar' | 'page' };
+  /** Print layout for PDF. */
+  print?: boolean;
+}
+
 /** The exported single-file page. No <script>, everything inline. */
-export function exportDocument(o: { title: string; body: string; codeCss: string; maxWidth: number; generator: string }): string {
+export function exportDocument(o: DocumentParts): string {
+  const codeCss =
+    o.theme === 'light'
+      ? o.codeCss.light
+      : o.theme === 'dark'
+        ? o.codeCss.dark
+        : `${o.codeCss.light}\n@media (prefers-color-scheme: dark) {\n${o.codeCss.dark}\n}`;
+  const sidebar = o.toc?.position === 'sidebar';
+  const main = `<main class="markdown-body">
+${o.toc && o.toc.position !== 'sidebar' ? o.toc.html + '\n' : ''}${o.body}
+</main>`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -90,48 +141,93 @@ export function exportDocument(o: { title: string; body: string; codeCss: string
 <meta name="generator" content="${attr(o.generator)}">
 <title>${escapeText(o.title)}</title>
 <style>
-${o.codeCss}
-${exportCss(o.maxWidth)}
+${codeCss}
+${exportCss(o)}
 </style>
 </head>
-<body>
-<main class="markdown-body">
-${o.body}
-</main>
+<body class="theme-${o.theme}${sidebar ? ' with-sidebar' : ''}${o.print ? ' print' : ''}">
+${sidebar ? `<div class="layout">\n${o.toc!.html}\n${main}\n</div>` : main}
 </body>
 </html>
 `;
 }
 
-function exportCss(maxWidth: number): string {
-  return `*,*::before,*::after{box-sizing:border-box}
+const LIGHT = `--fg:#1f2328;--muted:#59636e;--bg:#fff;--subtle:#f6f8fa;--border:#d1d9e0;--link:#0969da;--code-bg:rgba(129,139,152,.12);--error:#d1242f`;
+const DARK = `--fg:#e6edf3;--muted:#9198a1;--bg:#0d1117;--subtle:#151b23;--border:#3d444d;--link:#4493f8;--code-bg:rgba(101,108,118,.2);--error:#f85149`;
+
+function exportCss(o: DocumentParts): string {
+  const vars =
+    o.theme === 'light'
+      ? `:root{${LIGHT}}`
+      : o.theme === 'dark'
+        ? `:root{${DARK};color-scheme:dark}`
+        : `:root{${LIGHT}}@media (prefers-color-scheme: dark){:root{${DARK};color-scheme:dark}}`;
+  // Diagrams and images are drawn for light backgrounds; give them a light card in dark mode.
+  const darkCards = `.mermaid,img{background:#fff}.mermaid{padding:8px;border-radius:6px}`;
+  const dark = o.theme === 'dark' ? darkCards : o.theme === 'auto' ? `@media (prefers-color-scheme: dark){${darkCards}}` : '';
+  return `${vars}
+*,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:#fff;color:#1f2328;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI",Meiryo,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;word-wrap:break-word}
-.markdown-body{max-width:${maxWidth}px;margin:0 auto;padding:32px 24px 64px}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI",Meiryo,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;word-wrap:break-word}
+.markdown-body{max-width:${o.maxWidth}px;margin:0 auto;padding:32px 24px 64px;min-width:0}
 .markdown-body>*:first-child{margin-top:0}
 h1,h2,h3,h4,h5,h6{margin:24px 0 16px;font-weight:600;line-height:1.25;scroll-margin-top:16px}
-h1{font-size:2em;padding-bottom:.3em;border-bottom:1px solid #d1d9e0}
-h2{font-size:1.5em;padding-bottom:.3em;border-bottom:1px solid #d1d9e0}
-h3{font-size:1.25em}h4{font-size:1em}h5{font-size:.875em}h6{font-size:.85em;color:#59636e}
+h1{font-size:2em;padding-bottom:.3em;border-bottom:1px solid var(--border)}
+h2{font-size:1.5em;padding-bottom:.3em;border-bottom:1px solid var(--border)}
+h3{font-size:1.25em}h4{font-size:1em}h5{font-size:.875em}h6{font-size:.85em;color:var(--muted)}
 p,blockquote,ul,ol,dl,table,pre,details,.mermaid{margin:0 0 16px}
-a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 ul,ol{padding-left:2em}li+li{margin-top:.25em}
 li>input[type=checkbox]{margin:0 .35em .2em -1.4em;vertical-align:middle}
 ul:has(>li>input[type=checkbox]){list-style:none}
-blockquote{padding:0 1em;color:#59636e;border-left:.25em solid #d1d9e0}
-hr{height:.25em;padding:0;margin:24px 0;background:#d1d9e0;border:0}
-img{max-width:100%;height:auto;background:#fff}
+blockquote{padding:0 1em;color:var(--muted);border-left:.25em solid var(--border)}
+hr{height:.25em;padding:0;margin:24px 0;background:var(--border);border:0}
+img{max-width:100%;height:auto}
 code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:85%}
-:not(pre)>code{padding:.2em .4em;background:rgba(129,139,152,.12);border-radius:6px}
-pre{padding:16px;overflow:auto;line-height:1.45;background:#f6f8fa;border-radius:6px}
+:not(pre)>code{padding:.2em .4em;background:var(--code-bg);border-radius:6px}
+pre{padding:16px;overflow:auto;line-height:1.45;background:var(--subtle);border-radius:6px}
 pre>code{padding:0;background:transparent;font-size:100%}
 pre code.hljs{padding:0;background:transparent}
 table{display:block;width:max-content;max-width:100%;overflow:auto;border-spacing:0;border-collapse:collapse}
-th,td{padding:6px 13px;border:1px solid #d1d9e0}
-th{font-weight:600;background:#f6f8fa}
-tr:nth-child(2n) td{background:#f6f8fa}
+th,td{padding:6px 13px;border:1px solid var(--border)}
+th{font-weight:600;background:var(--subtle)}
+tr:nth-child(2n) td{background:var(--subtle)}
 .mermaid{text-align:center;overflow-x:auto}
 .mermaid svg{max-width:100%;height:auto}
-.mermaid-error{text-align:left;border:1px solid #d1242f;border-radius:6px;padding:8px 12px;color:#d1242f}
-@media print{.markdown-body{max-width:none;padding:0}pre,table,.mermaid,img{break-inside:avoid}}`;
+.mermaid-error{text-align:left;border:1px solid var(--error);border-radius:6px;padding:8px 12px;color:var(--error)}
+${dark}
+.toc{font-size:.95em}
+.toc-title{font-weight:600;font-size:1.25em;margin:0 0 8px}
+.toc ul{list-style:none;margin:0;padding:0}
+.toc li{margin:0}
+.toc a{display:flex;align-items:baseline;gap:6px;padding:2px 0;color:var(--fg)}
+.toc a:hover{color:var(--link)}
+.toc-text{min-width:0}
+.toc-dots{flex:1;border-bottom:1px dotted var(--muted);transform:translateY(-4px);min-width:16px}
+.toc-page{font-variant-numeric:tabular-nums}
+.toc-page--placeholder{visibility:hidden}
+.toc-l2{padding-left:1.25em}.toc-l3{padding-left:2.5em}.toc-l4{padding-left:3.75em}.toc-l5{padding-left:5em}.toc-l6{padding-left:6.25em}
+.toc-l1>a{font-weight:600}
+.toc-top{margin:0 0 32px;padding:16px 20px;background:var(--subtle);border-radius:6px}
+.layout{display:block}
+.toc-sidebar{padding:24px 16px 24px 24px;border-bottom:1px solid var(--border)}
+@media (min-width:1000px){
+.layout{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);align-items:start}
+.toc-sidebar{position:sticky;top:0;max-height:100vh;overflow:auto;border-bottom:0;border-right:1px solid var(--border)}
+.toc-sidebar .toc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+.toc-page-break{break-after:page}
+body.print{font-size:11pt}
+body.print .markdown-body{max-width:none;padding:0}
+body.print pre{white-space:pre-wrap;word-break:break-word;overflow:visible}
+body.print table{display:table;width:auto;overflow:visible}
+body.print .toc{font-size:10.5pt}
+@media print{
+.markdown-body{max-width:none;padding:0}
+.toc-sidebar{display:none}
+.layout{display:block}
+h1,h2,h3,h4,h5,h6{break-after:avoid}
+pre,table,.mermaid,img,blockquote{break-inside:avoid}
+tr,li{break-inside:avoid}
+}`;
 }

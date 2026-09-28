@@ -83,3 +83,38 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[dat
 .vditor-wysiwyg > .vditor-reset > h4:before, .vditor-wysiwyg > .vditor-reset > h5:before, .vditor-wysiwyg > .vditor-reset > h6:before { display: none !important; }
 .vditor-toolbar__item button[data-type^="md-"] svg,
 .vditor-toolbar__item button[data-type^="md-"] svg * { fill: none !important; stroke: currentColor !important; stroke-width: 1.3 !important; }
+
+/* Zoom (Ctrl+wheel): scales the document, not the toolbar or outline. */
+.vditor-ir > .vditor-reset, .vditor-wysiwyg > .vditor-reset, .vditor-sv, .vditor-preview > .vditor-reset { zoom: var(--md-zoom, 1); }
+.md-zoom-badge {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50; display: flex; gap: 8px; align-items: center;
+  padding: 6px 10px; border-radius: 6px; font: 12px var(--vscode-font-family, sans-serif);
+  color: var(--vscode-editorWidget-foreground, #333); background: var(--vscode-editorWidget-background, #f3f3f3);
+  border: 1px solid var(--vscode-editorWidget-border, #ccc); box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.md-zoom-badge--visible, .md-zoom-badge:hover { opacity: 1; pointer-events: auto; }
+.md-zoom-badge button, .md-lightbox__bar button {
+  font: inherit; cursor: pointer; padding: 2px 8px; border-radius: 3px;
+  color: var(--vscode-button-secondaryForeground, #333); background: var(--vscode-button-secondaryBackground, #e5e5e5); border: 0;
+}
+
+/* Images and diagrams can be enlarged. */
+.vditor-reset img { cursor: zoom-in; }
+.language-mermaid[data-processed="true"] { position: relative; }
+.md-diagram-expand {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0; cursor: zoom-in;
+  font-size: 15px; line-height: 24px; border-radius: 4px; opacity: 0; transition: opacity .15s;
+  color: #333; background: rgba(255,255,255,.9); border: 1px solid #bbb;
+}
+.language-mermaid[data-processed="true"]:hover > .md-diagram-expand { opacity: 1; }
+.md-lightbox {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
+  background: rgba(20, 20, 20, .88); outline: none; font: 13px var(--vscode-font-family, sans-serif);
+}
+.md-lightbox__bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; color: #eee; }
+.md-lightbox__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-lightbox__zoom { min-width: 48px; text-align: right; opacity: .8; }
+.md-lightbox__stage { position: relative; flex: 1; overflow: hidden; cursor: grab; }
+.md-lightbox__stage:active { cursor: grabbing; }
+.md-lightbox__content { position: absolute; left: 0; top: 0; max-width: none !important; transform-origin: 0 0; background: #fff; user-select: none; -webkit-user-drag: none; }

@@ -1,10 +1,9 @@
 // Renders Markdown to self-contained HTML inside a webview: marked -> heading ids -> Mermaid SVG ->
 // highlight.js -> images as data URIs (read by the host) -> scripts removed. The host wraps the result.
 import { Marked } from 'marked';
-import type { ExportSettings, ExporterToHost, HostToExporter } from '../protocol';
+import type { ExportSettings, Heading } from '../protocol';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion } from './mermaidLoader';
 
-declare function acquireVsCodeApi(): { postMessage(msg: ExporterToHost): void };
 interface Hljs {
   getLanguage(name: string): unknown;
   highlightElement(el: HTMLElement): void;
@@ -15,20 +14,13 @@ declare global {
   }
 }
 
-const vscode = acquireVsCodeApi();
-const post = (msg: ExporterToHost) => vscode.postMessage(msg);
-const settings: ExportSettings = JSON.parse(document.getElementById('md-studio-settings')!.textContent!);
-
-let imagesResolve: ((images: Record<string, string>) => void) | undefined;
-
-window.addEventListener('message', (event: MessageEvent<HostToExporter>) => {
-  const msg = event.data;
-  if (msg.type === 'render') {
-    render(msg.markdown).catch((e) => post({ type: 'failed', message: String(e?.stack ?? e) }));
-  } else if (msg.type === 'images') {
-    imagesResolve?.(msg.images);
-  }
-});
+export interface RenderResult {
+  html: string;
+  headings: Heading[];
+  mermaidVersion: string;
+  diagrams: number;
+  problems: string[];
+}
 
 /** GitHub / GitLab style anchor ids ("3.7 Foo Bar" -> "37-foo-bar", duplicates get -1, -2 ...). */
 export function addHeadingIds(root: ParentNode): void {
@@ -59,9 +51,18 @@ function loadScript(src: string): Promise<void> {
   });
 }
 
-async function render(markdown: string): Promise<void> {
+/**
+ * Renders Markdown into `main` and returns self-contained HTML (no scripts). `resolveImages` maps the
+ * image srcs to data URIs or rewritten paths; srcs missing from its result are reported as problems.
+ */
+export async function renderMarkdown(
+  main: HTMLElement,
+  markdown: string,
+  settings: ExportSettings,
+  options: { highlight: boolean },
+  resolveImages: (srcs: string[]) => Promise<Record<string, string>>,
+): Promise<RenderResult> {
   const problems: string[] = [];
-  const main = document.getElementById('out')!;
   const marked = new Marked({ gfm: true, breaks: false });
   main.innerHTML = await marked.parse(stripFrontMatter(markdown));
 
@@ -94,7 +95,7 @@ async function render(markdown: string): Promise<void> {
 
   // Syntax highlighting (static markup only; the CSS is inlined by the host).
   const codes = [...main.querySelectorAll<HTMLElement>('pre > code[class*="language-"]')];
-  if (codes.length > 0) {
+  if (options.highlight && codes.length > 0) {
     try {
       await loadScript(settings.hljsUrl);
       for (const code of codes) {
@@ -110,10 +111,7 @@ async function render(markdown: string): Promise<void> {
   const imgs = [...main.querySelectorAll<HTMLImageElement>('img[src]')];
   const srcs = [...new Set(imgs.map((img) => img.getAttribute('src')!).filter((s) => !/^data:/i.test(s)))];
   if (srcs.length > 0) {
-    const images = await new Promise<Record<string, string>>((resolve) => {
-      imagesResolve = resolve;
-      post({ type: 'needImages', srcs });
-    });
+    const images = await resolveImages(srcs);
     for (const img of imgs) {
       const src = img.getAttribute('src')!;
       if (/^data:/i.test(src)) continue;
@@ -147,7 +145,10 @@ async function render(markdown: string): Promise<void> {
     if (raw !== '' && !ids.has(target) && !ids.has(raw)) problems.push(`Link target not found: #${target}`);
   }
 
-  post({ type: 'done', html: main.innerHTML, mermaidVersion: version, diagrams: blocks.length, problems });
+  const headings: Heading[] = [...main.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')].map((h) => ({
+    level: Number(h.tagName[1]),
+    id: h.id,
+    text: (h.textContent ?? '').trim(),
+  }));
+  return { html: main.innerHTML, headings, mermaidVersion: version, diagrams: blocks.length, problems };
 }
-
-post({ type: 'ready' });

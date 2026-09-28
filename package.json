@@ -54,10 +54,20 @@
         "icon": "$(go-to-file)"
       },
       {
-        "command": "mdStudio.exportHtml",
-        "title": "Export to Single HTML File",
+        "command": "mdStudio.export",
+        "title": "Export...",
         "category": "MD Studio",
         "icon": "$(export)"
+      },
+      {
+        "command": "mdStudio.exportHtml",
+        "title": "Export to HTML",
+        "category": "MD Studio"
+      },
+      {
+        "command": "mdStudio.exportPdf",
+        "title": "Export to PDF",
+        "category": "MD Studio"
       },
       {
         "command": "mdStudio.showLog",
@@ -78,7 +88,7 @@
           "group": "navigation"
         },
         {
-          "command": "mdStudio.exportHtml",
+          "command": "mdStudio.export",
           "when": "activeCustomEditorId == mdStudio.editor",
           "group": "navigation"
         }
@@ -90,7 +100,7 @@
           "group": "navigation@20"
         },
         {
-          "command": "mdStudio.exportHtml",
+          "command": "mdStudio.export",
           "when": "resourceLangId == markdown",
           "group": "navigation@21"
         }
@@ -105,7 +115,15 @@
           "when": "activeCustomEditorId == mdStudio.editor"
         },
         {
+          "command": "mdStudio.export",
+          "when": "resourceLangId == markdown || activeCustomEditorId == mdStudio.editor"
+        },
+        {
           "command": "mdStudio.exportHtml",
+          "when": "resourceLangId == markdown || activeCustomEditorId == mdStudio.editor"
+        },
+        {
+          "command": "mdStudio.exportPdf",
           "when": "resourceLangId == markdown || activeCustomEditorId == mdStudio.editor"
         }
       ]
@@ -219,10 +237,128 @@
           "default": "images",
           "markdownDescription": "Folder (relative to the Markdown file) where pasted images are saved."
         },
+        "mdStudio.export.format": {
+          "type": "string",
+          "enum": [
+            "html",
+            "pdf"
+          ],
+          "default": "html",
+          "markdownDescription": "Default format in the Export panel."
+        },
+        "mdStudio.export.images": {
+          "type": "string",
+          "enum": [
+            "embed",
+            "link",
+            "copy"
+          ],
+          "enumDescriptions": [
+            "Embed images in the HTML as data URIs (one self-contained file).",
+            "Keep links to the original image files (paths rewritten relative to the HTML).",
+            "Copy images to a `<name>_files` folder next to the HTML."
+          ],
+          "default": "embed",
+          "markdownDescription": "How images are written to exported HTML. PDF always embeds them."
+        },
+        "mdStudio.export.highlight": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Syntax highlighting for code blocks in exports."
+        },
+        "mdStudio.export.toc": {
+          "type": "string",
+          "enum": [
+            "none",
+            "top",
+            "sidebar"
+          ],
+          "default": "none",
+          "markdownDescription": "Table of contents in exported HTML."
+        },
+        "mdStudio.export.tocDepth": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 6,
+          "default": 3,
+          "markdownDescription": "Heading levels listed in the table of contents (HTML and PDF)."
+        },
+        "mdStudio.export.tocTitle": {
+          "type": "string",
+          "default": "Contents",
+          "markdownDescription": "Title of the table of contents."
+        },
+        "mdStudio.export.theme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark",
+            "auto"
+          ],
+          "default": "light",
+          "markdownDescription": "Color theme of exported HTML. `auto` follows the viewer's OS setting."
+        },
         "mdStudio.export.maxWidth": {
           "type": "number",
           "default": 1180,
           "markdownDescription": "Maximum width (px) of the body in exported HTML."
+        },
+        "mdStudio.export.openAfter": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Open the exported file with its default application."
+        },
+        "mdStudio.pdf.toc": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Start the PDF with a table of contents page (with page numbers and links)."
+        },
+        "mdStudio.pdf.bookmarks": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Add PDF bookmarks (outline) for the headings."
+        },
+        "mdStudio.pdf.paper": {
+          "type": "string",
+          "enum": [
+            "A4",
+            "A3",
+            "B5",
+            "Letter",
+            "Legal"
+          ],
+          "default": "A4",
+          "markdownDescription": "Paper size of exported PDF."
+        },
+        "mdStudio.pdf.landscape": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Landscape orientation."
+        },
+        "mdStudio.pdf.margin": {
+          "type": "string",
+          "enum": [
+            "narrow",
+            "normal",
+            "wide"
+          ],
+          "default": "normal",
+          "markdownDescription": "Page margins."
+        },
+        "mdStudio.pdf.pageNumbers": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Page numbers (`n / total`) in the footer."
+        },
+        "mdStudio.pdf.headerTitle": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Document title in the page header."
+        },
+        "mdStudio.pdf.browserPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Browser used to print PDF (Edge, Chrome or Chromium). Empty = detect Microsoft Edge / Google Chrome automatically. On Remote-SSH / WSL this is a path on the remote machine."
         }
       }
     }
@@ -239,6 +375,7 @@
   "devDependencies": {
     "@types/node": "20.19.43",
     "@types/vscode": "1.85.0",
+    "@vscode/codicons": "0.0.46-24",
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "marked": "18.0.14",

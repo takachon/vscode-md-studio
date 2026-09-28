@@ -7,6 +7,7 @@ import { FONT_SETTINGS, SECTION, editorFont, resolveMermaid, resourceRoots, toSe
 import type { Log } from './log';
 
 export const VIEW_TYPE = 'mdStudio.editor';
+const ZOOM_KEY = 'mdStudio.editor.zoom';
 
 export class MermaidStatus {
   private readonly item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -149,6 +150,7 @@ class EditorSession {
       toolbar: cfg.get('editor.toolbar', true),
       outline: cfg.get('editor.outline', true),
       font: editorFont(this.document.uri),
+      zoom: this.context.globalState.get<number>(ZOOM_KEY, 1),
       mermaid: toSetup(webview, mermaid),
     };
     webview.html = editorHtml({
@@ -198,6 +200,9 @@ class EditorSession {
         break;
       case 'openLink':
         void this.openLink(m.href);
+        break;
+      case 'zoom':
+        void this.context.globalState.update(ZOOM_KEY, m.value);
         break;
       case 'command':
         void this.runCommand(m.command);
@@ -309,7 +314,7 @@ class EditorSession {
         await vscode.commands.executeCommand('mdStudio.openTextEditor', uri);
         break;
       case 'export':
-        await vscode.commands.executeCommand('mdStudio.exportHtml', uri);
+        await vscode.commands.executeCommand('mdStudio.export', uri);
         break;
       case 'settings':
         await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${this.context.extension.id}`);
