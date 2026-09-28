@@ -1,0 +1,250 @@
+{
+  "name": "md-studio",
+  "displayName": "MD Studio",
+  "description": "WYSIWYG Markdown editor with a bundled, configurable Mermaid and single-file HTML export. Works fully offline.",
+  "version": "0.1.0",
+  "publisher": "internal",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/takachon/vscode-md-studio.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "wysiwyg",
+    "mermaid",
+    "vditor"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "mdStudio.editor",
+        "displayName": "MD Studio (WYSIWYG)",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mdStudio.openEditor",
+        "title": "Open in WYSIWYG Editor",
+        "category": "MD Studio",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "mdStudio.openTextEditor",
+        "title": "Reopen as Text Editor",
+        "category": "MD Studio",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "mdStudio.exportHtml",
+        "title": "Export to Single HTML File",
+        "category": "MD Studio",
+        "icon": "$(export)"
+      },
+      {
+        "command": "mdStudio.showLog",
+        "title": "Show Log",
+        "category": "MD Studio"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mdStudio.openEditor",
+          "when": "resourceLangId == markdown && activeEditor == workbench.editors.files.textFileEditor",
+          "group": "navigation"
+        },
+        {
+          "command": "mdStudio.openTextEditor",
+          "when": "activeCustomEditorId == mdStudio.editor",
+          "group": "navigation"
+        },
+        {
+          "command": "mdStudio.exportHtml",
+          "when": "activeCustomEditorId == mdStudio.editor",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "mdStudio.openEditor",
+          "when": "resourceLangId == markdown",
+          "group": "navigation@20"
+        },
+        {
+          "command": "mdStudio.exportHtml",
+          "when": "resourceLangId == markdown",
+          "group": "navigation@21"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mdStudio.openEditor",
+          "when": "resourceLangId == markdown"
+        },
+        {
+          "command": "mdStudio.openTextEditor",
+          "when": "activeCustomEditorId == mdStudio.editor"
+        },
+        {
+          "command": "mdStudio.exportHtml",
+          "when": "resourceLangId == markdown || activeCustomEditorId == mdStudio.editor"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MD Studio",
+      "properties": {
+        "mdStudio.mermaid.source": {
+          "type": "string",
+          "enum": [
+            "bundled",
+            "file"
+          ],
+          "enumDescriptions": [
+            "Use the Mermaid build bundled with the extension.",
+            "Use the mermaid.min.js file given in mdStudio.mermaid.file."
+          ],
+          "default": "bundled",
+          "markdownDescription": "Which Mermaid build to use for the editor and HTML export."
+        },
+        "mdStudio.mermaid.file": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to a `mermaid.min.js` (IIFE build that defines `window.mermaid`) used when `#mdStudio.mermaid.source#` is `file`. On Remote-SSH / WSL this is a path on the remote machine. `~` and `${workspaceFolder}` are expanded."
+        },
+        "mdStudio.mermaid.theme": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "default",
+            "neutral",
+            "dark",
+            "forest",
+            "base",
+            "redux",
+            "redux-color",
+            "redux-dark",
+            "redux-dark-color"
+          ],
+          "markdownDescription": "Default Mermaid theme. Empty = Mermaid's own default (Mermaid 12 uses `redux-color` for flowcharts). A `config:` block at the top of a diagram always wins."
+        },
+        "mdStudio.mermaid.look": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "classic",
+            "neo",
+            "handDrawn"
+          ],
+          "markdownDescription": "Default Mermaid look. Empty = Mermaid's own default (Mermaid 12: `neo`)."
+        },
+        "mdStudio.mermaid.layout": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "dagre",
+            "elk"
+          ],
+          "markdownDescription": "Default Mermaid layout engine. Empty = Mermaid's own default (Mermaid 12: `elk`)."
+        },
+        "mdStudio.mermaid.securityLevel": {
+          "type": "string",
+          "default": "loose",
+          "enum": [
+            "loose",
+            "strict",
+            "antiscript"
+          ],
+          "markdownDescription": "Mermaid `securityLevel`. `loose` allows HTML labels. Use `strict` for untrusted documents."
+        },
+        "mdStudio.mermaid.config": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Extra options passed to `mermaid.initialize()` (e.g. `{\"flowchart\": {\"curve\": \"basis\"}}`). Theme / look / layout above take precedence over the same keys here."
+        },
+        "mdStudio.editor.mode": {
+          "type": "string",
+          "default": "ir",
+          "enum": [
+            "ir",
+            "wysiwyg",
+            "sv"
+          ],
+          "enumDescriptions": [
+            "Instant rendering: Markdown markers appear around the cursor (Typora-like).",
+            "Classic WYSIWYG: Markdown markers are hidden.",
+            "Split view: source on the left, preview on the right."
+          ],
+          "markdownDescription": "Editing mode of the WYSIWYG editor. Takes effect when the editor is reopened."
+        },
+        "mdStudio.editor.toolbar": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the editor toolbar."
+        },
+        "mdStudio.editor.outline": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the outline (table of contents) on the left when the editor opens. It can be toggled from the toolbar."
+        },
+        "mdStudio.editor.allowRemoteImages": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Allow the editor to load `https:` images. Off by default so the editor never goes to the network."
+        },
+        "mdStudio.image.folder": {
+          "type": "string",
+          "default": "images",
+          "markdownDescription": "Folder (relative to the Markdown file) where pasted images are saved."
+        },
+        "mdStudio.export.maxWidth": {
+          "type": "number",
+          "default": 1180,
+          "markdownDescription": "Maximum width (px) of the body in exported HTML."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vendor": "node scripts/vendor.mjs",
+    "build": "node scripts/vendor.mjs && node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "node scripts/build.mjs && node --test test/*.test.mjs",
+    "package": "npm run build && vsce package --no-dependencies --allow-missing-repository",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/vscode": "1.85.0",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "marked": "18.0.14",
+    "mermaid": "12.0.0",
+    "playwright-core": "1.56.1",
+    "typescript": "5.9.3",
+    "vditor": "4.0.0"
+  }
+}

@@ -1,0 +1,69 @@
+/* Layout: the editor fills the webview. */
+html, body { height: 100%; margin: 0; padding: 0; }
+body { background: var(--vscode-editor-background); overflow: hidden; }
+#vditor { height: 100vh !important; border: 0; }
+
+/* Blend Vditor into the VS Code theme. */
+.vditor {
+  --panel-background-color: var(--vscode-editorWidget-background);
+  --toolbar-background-color: var(--vscode-editor-background);
+  --textarea-background-color: var(--vscode-editor-background);
+  --border-color: var(--vscode-editorGroup-border, transparent);
+  --second-color: var(--vscode-descriptionForeground);
+  --textarea-text-color: var(--vscode-editor-foreground);
+  --toolbar-icon-color: var(--vscode-icon-foreground);
+  --toolbar-icon-hover-color: var(--vscode-textLink-foreground);
+  border: 0 !important;
+}
+.vditor-toolbar { border-bottom: 1px solid var(--vscode-editorGroup-border, transparent) !important; }
+.vditor-reset { font-family: var(--vscode-markdown-font-family, var(--vscode-font-family)); color: var(--vscode-editor-foreground); }
+.vditor-reset a { color: var(--vscode-textLink-foreground); }
+.vditor-ir pre.vditor-reset, .vditor-wysiwyg pre.vditor-reset, .vditor-sv { padding: 16px 32px !important; }
+
+/* Diagrams drawn with light themes stay readable on dark editors. */
+body.vscode-dark .language-mermaid[data-processed="true"],
+body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[data-processed="true"] {
+  background: #fff;
+  border-radius: 6px;
+  padding: 8px;
+}
+.language-mermaid svg { max-width: 100%; height: auto; }
+.md-studio-mermaid-error {
+  text-align: left;
+  color: var(--vscode-errorForeground, #d1242f);
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--vscode-editor-background);
+}
+.md-studio-mermaid-error pre { white-space: pre-wrap; margin: 4px 0 0; font-size: 12px; }
+
+/* Office Viewer–like chrome: centered toolbar on a light bar, outline tree on the left. */
+.vditor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 4px 8px !important;
+  background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background)) !important;
+}
+.vditor-toolbar__item { float: none !important; }
+.vditor-toolbar__item .vditor-tooltipped { color: var(--vscode-icon-foreground); }
+.vditor-toolbar__item svg { width: 15px; height: 15px; }
+.vditor-outline {
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background)) !important;
+  border-right: 1px solid var(--vscode-editorGroup-border, transparent) !important;
+  width: 260px;
+}
+.vditor-outline__title { color: var(--vscode-sideBarSectionHeader-foreground, inherit); }
+.vditor-outline li > span { color: var(--vscode-foreground); }
+.vditor-outline li > span:hover { background: var(--vscode-list-hoverBackground) !important; }
+/* Full-width body like Office Viewer; wide tables scroll instead of being cut off. */
+.vditor-reset table { display: table; width: 100%; word-break: normal; overflow-wrap: break-word; }
+.vditor-reset table td, .vditor-reset table th { word-break: normal; white-space: normal !important; }
+/* No "H1/H2" labels in the gutter (Office Viewer hides them too). */
+.vditor-ir .vditor-reset > h1:before, .vditor-ir .vditor-reset > h2:before, .vditor-ir .vditor-reset > h3:before,
+.vditor-ir .vditor-reset > h4:before, .vditor-ir .vditor-reset > h5:before, .vditor-ir .vditor-reset > h6:before,
+.vditor-wysiwyg > .vditor-reset > h1:before, .vditor-wysiwyg > .vditor-reset > h2:before, .vditor-wysiwyg > .vditor-reset > h3:before,
+.vditor-wysiwyg > .vditor-reset > h4:before, .vditor-wysiwyg > .vditor-reset > h5:before, .vditor-wysiwyg > .vditor-reset > h6:before { display: none !important; }
+.vditor-toolbar__item button[data-type^="md-"] svg,
+.vditor-toolbar__item button[data-type^="md-"] svg * { fill: none !important; stroke: currentColor !important; stroke-width: 1.3 !important; }

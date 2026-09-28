@@ -1,0 +1,10 @@
+**
+!package.json
+!README.md
+!LICENSE
+!THIRD_PARTY_NOTICES.md
+!dist/extension.js
+!dist/webview/*.js
+!media/editor.css
+!media/icon.png
+!media/vendor/**

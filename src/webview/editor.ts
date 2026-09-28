@@ -1,0 +1,287 @@
+import type { EditorSettings, EditorToHost, HostToEditor, ToolbarCommand } from '../protocol';
+import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion, type MermaidApi } from './mermaidLoader';
+
+interface VditorInstance {
+  getValue(): string;
+  setValue(markdown: string, clearStack?: boolean): void;
+  insertValue(value: string, render?: boolean): void;
+  setTheme(theme: 'dark' | 'classic', contentTheme?: string, codeTheme?: string, contentThemePath?: string): void;
+  focus(): void;
+}
+declare const Vditor: new (id: string | HTMLElement, options: Record<string, unknown>) => VditorInstance;
+declare function acquireVsCodeApi(): { postMessage(msg: EditorToHost): void };
+
+const vscode = acquireVsCodeApi();
+const post = (msg: EditorToHost) => vscode.postMessage(msg);
+const settings: EditorSettings = JSON.parse(document.getElementById('md-studio-settings')!.textContent!);
+
+const log = (level: 'info' | 'warn' | 'error', message: string) => post({ type: 'log', level, message });
+window.addEventListener('error', (e) => log('error', `webview: ${e.message}`));
+window.addEventListener('unhandledrejection', (e) => log('error', `webview: ${String(e.reason?.message ?? e.reason)}`));
+
+// --- Mermaid -----------------------------------------------------------------------------------
+// Vditor loads `${cdn}/dist/js/mermaid/mermaid.min.js` unless an element with this id exists, and then
+// calls the global `mermaid.initialize(its own config)` + `mermaid.render()`. We claim the id and put a
+// facade in `window.mermaid` so that the configured build and the user's settings are used instead.
+function installMermaidFacade(): void {
+  const marker = document.createElement('meta');
+  marker.id = 'vditorMermaidScript';
+  document.head.appendChild(marker);
+  const facade: MermaidApi = {
+    initialize() {
+      /* Vditor's config is ignored; ours was applied in loadMermaid(). */
+    },
+    async render(id: string, text: string) {
+      let api: MermaidApi;
+      try {
+        api = await mermaidReady();
+      } catch (e) {
+        return { svg: errorBox(String((e as Error).message ?? e)) };
+      }
+      try {
+        return await api.render(id, text);
+      } catch (e) {
+        cleanupFailedRender(id);
+        return { svg: errorBox(String((e as Error).message ?? e)) };
+      }
+    },
+  };
+  window.mermaid = facade;
+}
+
+function errorBox(message: string): string {
+  return `<div class="md-studio-mermaid-error"><strong>Mermaid error</strong><pre>${escapeHtml(message)}</pre></div>`;
+}
+
+let mermaidPromise: Promise<MermaidApi> | undefined;
+function mermaidReady(): Promise<MermaidApi> {
+  if (!mermaidPromise) {
+    mermaidPromise = loadMermaid(settings.mermaid);
+    // loadMermaid restores the previous window.mermaid (our facade) after loading.
+    mermaidPromise.then(
+      async (api) => post({ type: 'mermaidLoaded', version: await mermaidVersion(api) }),
+      (e) => log('error', String(e.message ?? e)),
+    );
+  }
+  return mermaidPromise;
+}
+
+// --- Theme -------------------------------------------------------------------------------------
+const isDark = () =>
+  document.body.classList.contains('vscode-dark') ||
+  (document.body.classList.contains('vscode-high-contrast') &&
+    !document.body.classList.contains('vscode-high-contrast-light'));
+const themeArgs = (): ['dark' | 'classic', string, string] =>
+  isDark() ? ['dark', 'dark', 'github-dark'] : ['classic', 'light', 'github'];
+
+// --- Editor ------------------------------------------------------------------------------------
+let vditor: VditorInstance | undefined;
+let syncId = 0;
+let timer: ReturnType<typeof setTimeout> | undefined;
+let lastSent: string | undefined;
+let nextRequest = 1;
+const pendingImages = new Map<number, (r: { path?: string; error?: string }) => void>();
+
+function sendEdit(): void {
+  if (timer) {
+    clearTimeout(timer);
+    timer = undefined;
+  }
+  if (!vditor) return;
+  const text = vditor.getValue();
+  if (text === lastSent) return;
+  lastSent = text;
+  post({ type: 'edit', text, syncId });
+}
+
+function scheduleEdit(): void {
+  if (timer) clearTimeout(timer);
+  timer = setTimeout(sendEdit, 250);
+}
+
+function sendBaseline(): void {
+  const norm = vditor!.getValue();
+  lastSent = norm;
+  post({ type: 'baseline', norm, syncId });
+}
+
+function create(text: string): void {
+  const [theme, contentTheme, codeTheme] = themeArgs();
+  const cdn = settings.vditorCdn;
+  vditor = new Vditor('vditor', {
+    value: text,
+    cdn,
+    mode: settings.mode,
+    lang: 'en_US',
+    icon: 'ant',
+    theme,
+    height: '100%',
+    width: '100%',
+    cache: { enable: false },
+    counter: { enable: false },
+    typewriterMode: false,
+    toolbarConfig: { hide: !settings.toolbar, pin: true },
+    // Laid out like Office Viewer's Markdown editor (both are built on Vditor's IR mode):
+    // outline on the left, file actions first, then formatting, lists, blocks, history.
+    toolbar: [
+      'outline',
+      '|',
+      button('md-open-text', 'Open as Text Editor', ICONS.openText, 'openText'),
+      button('md-save', 'Save (Ctrl+S)', ICONS.save, 'save'),
+      button('md-export', 'Export to Single HTML File', ICONS.export, 'export'),
+      '|',
+      'headings', 'bold', 'italic', 'strike', 'link', '|',
+      'list', 'ordered-list', 'check', 'outdent', 'indent', 'table', '|',
+      'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', 'upload', 'emoji', '|',
+      'undo', 'redo', '|',
+      'edit-mode',
+      button('md-settings', 'MD Studio Settings', ICONS.settings, 'settings'),
+    ],
+    outline: { enable: settings.outline, position: 'left' },
+    hint: { emojiPath: `${cdn}/dist/images/emoji` },
+    preview: {
+      theme: { current: contentTheme, path: `${cdn}/dist/css/content-theme` },
+      hljs: { style: codeTheme, lineNumber: false },
+      math: { engine: 'KaTeX' },
+      markdown: {
+        linkBase: settings.linkBase,
+        autoSpace: false,
+        fixTermTypo: false,
+        toc: true,
+        mark: true,
+        sanitize: true,
+      },
+      actions: [],
+    },
+    upload: {
+      accept: 'image/*',
+      multiple: true,
+      handler: uploadImages,
+    },
+    input: scheduleEdit,
+    blur: sendEdit,
+    after: () => {
+      sendBaseline();
+      // Load Mermaid in the background so its version is known even without diagrams.
+      setTimeout(() => void mermaidReady().catch(() => undefined), 500);
+    },
+  });
+}
+
+const svg = (body: string) =>
+  `<svg viewBox="0 0 16 16" style="fill:none" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">${body}</svg>`;
+const ICONS = {
+  openText: svg('<path d="M3 1.5h6.5L13 5v9.5H3z"/><path d="M9.5 1.5V5H13M5.5 8h5M5.5 10.5h5M5.5 13h3"/>'),
+  save: svg('<path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5V2.5M4.5 13.5V9.5h7v4"/>'),
+  export: svg('<path d="M8 2v8M5 7l3 3 3-3"/><path d="M2.5 10.5v3h11v-3"/>'),
+  settings: svg('<circle cx="8" cy="8" r="2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'),
+};
+
+function button(name: string, tip: string, icon: string, command: ToolbarCommand) {
+  return {
+    name,
+    tip,
+    tipPosition: 's',
+    icon,
+    click: () => {
+      sendEdit();
+      post({ type: 'command', command });
+    },
+  };
+}
+
+async function uploadImages(files: File[]): Promise<null> {
+  for (const file of files) {
+    const data = await fileToBase64(file);
+    const requestId = nextRequest++;
+    const result = await new Promise<{ path?: string; error?: string }>((resolve) => {
+      pendingImages.set(requestId, resolve);
+      post({ type: 'saveImage', requestId, name: file.name || 'image.png', mime: file.type, data });
+    });
+    if (result.path) {
+      const alt = (file.name || 'image').replace(/\.[^.]+$/, '').replace(/[[\]]/g, '');
+      vditor?.insertValue(`![${alt}](${encodeURI(result.path)})`);
+    } else {
+      log('error', `Could not save pasted image: ${result.error ?? 'unknown error'}`);
+    }
+  }
+  scheduleEdit();
+  return null;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+window.addEventListener('message', (event: MessageEvent<HostToEditor>) => {
+  const msg = event.data;
+  switch (msg.type) {
+    case 'init':
+      syncId = msg.syncId;
+      if (!vditor) create(msg.text);
+      else {
+        vditor.setValue(msg.text, true);
+        sendBaseline();
+      }
+      break;
+    case 'update':
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      syncId = msg.syncId;
+      vditor?.setValue(msg.text, true);
+      if (vditor) sendBaseline();
+      break;
+    case 'flush': {
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      const text = vditor?.getValue();
+      if (text !== undefined) lastSent = text;
+      post({ type: 'flushed', requestId: msg.requestId, text, syncId });
+      break;
+    }
+    case 'imageSaved':
+      pendingImages.get(msg.requestId)?.({ path: msg.path, error: msg.error });
+      pendingImages.delete(msg.requestId);
+      break;
+  }
+});
+
+// Save shortcut: push pending changes right away (the host also asks for a flush before saving).
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') sendEdit();
+}, true);
+
+// Ctrl/Cmd+click opens links (the webview cannot navigate by itself).
+document.addEventListener('click', (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const target = e.target as HTMLElement;
+  const a = target.closest('a[href]') as HTMLAnchorElement | null;
+  let href = a?.getAttribute('href') ?? undefined;
+  if (!href) {
+    const link = target.closest('.vditor-ir__node[data-type="a"]');
+    href = link?.querySelector('.vditor-ir__marker--link')?.textContent ?? undefined;
+  }
+  if (href) {
+    e.preventDefault();
+    e.stopPropagation();
+    post({ type: 'openLink', href });
+  }
+}, true);
+
+new MutationObserver(() => {
+  if (!vditor) return;
+  const [theme, contentTheme, codeTheme] = themeArgs();
+  vditor.setTheme(theme, contentTheme, codeTheme, `${settings.vditorCdn}/dist/css/content-theme`);
+}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+installMermaidFacade();
+post({ type: 'ready' });
