@@ -65,6 +65,16 @@ MD Studio が出ていれば OK です。ローカルにだけ入っている場
 | `mdStudio.image.folder` | `images` | 貼り付けた画像の保存先 (Markdown ファイルからの相対) |
 | `mdStudio.export.maxWidth` | `1180` | 書き出した HTML の本文の最大幅 (px) |
 
+### フォント
+
+フォントは VS Code の設定に従います (MD Studio 独自の設定はありません)。変えるとすぐ反映されます。
+
+| 部分 | 使う設定 |
+|---|---|
+| 本文 | `markdown.preview.fontFamily` / `markdown.preview.fontSize` / `markdown.preview.lineHeight` (VS Code 標準の Markdown プレビューと同じ) |
+| コード | `editor.fontFamily` / `editor.fontSize` |
+| ツールバー・アウトライン | VS Code の画面のフォント |
+
 優先順位は **図の先頭の `config:` > 設定 (`theme` / `look` / `layout`) > `mdStudio.mermaid.config` > Mermaid の既定** です。
 
 ```mermaid

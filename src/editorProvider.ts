@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { editorHtml } from './html';
 import { mergeEdit, minimalReplace } from './merge';
 import type { EditorSettings, EditorToHost, HostToEditor, ToolbarCommand } from './protocol';
-import { SECTION, resolveMermaid, resourceRoots, toSetup } from './settings';
+import { FONT_SETTINGS, SECTION, editorFont, resolveMermaid, resourceRoots, toSetup } from './settings';
 import type { Log } from './log';
 
 export const VIEW_TYPE = 'mdStudio.editor';
@@ -108,7 +108,8 @@ class EditorSession {
         if (e.document === document) e.waitUntil(this.editsBeforeSave());
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration(SECTION, document.uri)) void this.flushAndApply().then(() => this.render());
+        const fontChanged = FONT_SETTINGS.some((k) => e.affectsConfiguration(k, document.uri));
+        if (e.affectsConfiguration(SECTION, document.uri) || fontChanged) void this.flushAndApply().then(() => this.render());
       }),
       panel.onDidChangeViewState(() => {
         if (panel.active) status.focus(this);
@@ -147,6 +148,7 @@ class EditorSession {
       mode: cfg.get('editor.mode', 'ir'),
       toolbar: cfg.get('editor.toolbar', true),
       outline: cfg.get('editor.outline', true),
+      font: editorFont(this.document.uri),
       mermaid: toSetup(webview, mermaid),
     };
     webview.html = editorHtml({

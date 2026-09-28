@@ -25,6 +25,7 @@ export async function startServer({ mermaidUrl, mermaidConfig = {}, mode = 'ir',
           mode,
           toolbar: true,
           outline: true,
+          font: { family: "'Segoe UI', sans-serif", size: 14, lineHeight: 1.6, codeFamily: 'monospace', codeSize: 13 },
           mermaid: { url: origin + (mermaidUrl ?? '/media/vendor/mermaid/mermaid.min.js'), label: 'test', config: { startOnLoad: false, securityLevel: 'loose', ...mermaidConfig } },
         },
       });

@@ -17,7 +17,17 @@ export interface EditorSettings {
   mode: 'ir' | 'wysiwyg' | 'sv';
   toolbar: boolean;
   outline: boolean;
+  font: EditorFont;
   mermaid: MermaidSetup;
+}
+
+/** Fonts taken from VS Code's settings (markdown.preview.* for text, editor.* for code). */
+export interface EditorFont {
+  family: string;
+  size: number;
+  lineHeight: number;
+  codeFamily: string;
+  codeSize: number;
 }
 
 export type ToolbarCommand = 'openText' | 'save' | 'export' | 'settings';

@@ -16,7 +16,23 @@ body { background: var(--vscode-editor-background); overflow: hidden; }
   border: 0 !important;
 }
 .vditor-toolbar { border-bottom: 1px solid var(--vscode-editorGroup-border, transparent) !important; }
-.vditor-reset { font-family: var(--vscode-markdown-font-family, var(--vscode-font-family)); color: var(--vscode-editor-foreground); }
+/* Fonts follow VS Code: markdown.preview.* for text, editor.* for code, the workbench font for chrome.
+   (Vditor's own stack puts Chinese fonts before sans-serif, which renders Japanese with Chinese glyphs.) */
+.vditor, .vditor-toolbar, .vditor-outline, .vditor-hint, .vditor-panel, .vditor-tip {
+  font-family: var(--vscode-font-family, sans-serif) !important;
+}
+.vditor-outline { font-size: var(--vscode-font-size, 13px); }
+.vditor-reset, .vditor-sv {
+  font-family: var(--md-font-family, var(--vscode-font-family, sans-serif)) !important;
+  font-size: var(--md-font-size, 14px) !important;
+  line-height: var(--md-line-height, 1.6) !important;
+  color: var(--vscode-editor-foreground);
+}
+.vditor-reset code, .vditor-reset pre > code, .vditor-reset kbd, .vditor-reset samp,
+.vditor-ir__marker--pre code, .vditor-ir__marker--info {
+  font-family: var(--md-code-font-family, var(--vscode-editor-font-family, monospace)) !important;
+}
+.vditor-reset pre code, .vditor-reset pre.vditor-ir__marker--pre code { font-size: var(--md-code-font-size, 13px) !important; }
 .vditor-reset a { color: var(--vscode-textLink-foreground); }
 .vditor-ir pre.vditor-reset, .vditor-wysiwyg pre.vditor-reset, .vditor-sv { padding: 16px 32px !important; }
 

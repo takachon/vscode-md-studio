@@ -66,6 +66,17 @@ function mermaidReady(): Promise<MermaidApi> {
   return mermaidPromise;
 }
 
+// --- Fonts (from VS Code's settings) ----------------------------------------------------------
+{
+  const f = settings.font;
+  const root = document.documentElement.style;
+  root.setProperty('--md-font-family', f.family);
+  root.setProperty('--md-font-size', `${f.size}px`);
+  root.setProperty('--md-line-height', String(f.lineHeight));
+  root.setProperty('--md-code-font-family', f.codeFamily);
+  root.setProperty('--md-code-font-size', `${f.codeSize}px`);
+}
+
 // --- Theme -------------------------------------------------------------------------------------
 const isDark = () =>
   document.body.classList.contains('vscode-dark') ||

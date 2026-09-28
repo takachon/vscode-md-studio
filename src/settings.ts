@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { MermaidSetup } from './protocol';
+import type { EditorFont, MermaidSetup } from './protocol';
 
 export const SECTION = 'mdStudio';
 
@@ -87,4 +87,22 @@ export function resourceRoots(extensionUri: vscode.Uri, doc: vscode.Uri, extra: 
   for (const f of vscode.workspace.workspaceFolders ?? []) roots.push(f.uri);
   for (const e of extra) if (e) roots.push(e);
   return roots;
+}
+
+/** VS Code settings that decide the editor's fonts (the same ones the built-in Markdown preview uses). */
+export const FONT_SETTINGS = ['markdown.preview.fontFamily', 'markdown.preview.fontSize', 'markdown.preview.lineHeight', 'editor.fontFamily', 'editor.fontSize'];
+
+export function editorFont(scope?: vscode.Uri): EditorFont {
+  const md = vscode.workspace.getConfiguration('markdown.preview', scope);
+  const ed = vscode.workspace.getConfiguration('editor', scope);
+  const num = (v: unknown, fallback: number) => (typeof v === 'number' && v > 0 ? v : fallback);
+  return {
+    family:
+      md.get<string>('fontFamily') ||
+      "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
+    size: num(md.get('fontSize'), 14),
+    lineHeight: num(md.get('lineHeight'), 1.6),
+    codeFamily: ed.get<string>('fontFamily') || "Consolas, 'Courier New', monospace",
+    codeSize: num(ed.get('fontSize'), 14),
+  };
 }
