@@ -49,3 +49,5 @@ code { font-family: var(--vscode-editor-font-family); }
 .is-html .only-pdf, .is-pdf .only-html { display: none; }
 /* Rendering area: laid out (Mermaid measures text) but not visible. */
 #out { position: absolute; left: -10000px; top: 0; width: 1100px; visibility: hidden; }
+.only-custom-font { display: none; }
+.is-custom-font .only-custom-font { display: flex; }

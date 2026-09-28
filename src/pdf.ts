@@ -2,7 +2,7 @@
 // (Edge / Chrome / Chromium) driven over the DevTools protocol on a pipe. No network access:
 // every host name resolves to nothing and no port is opened.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -21,6 +21,7 @@ export interface PrintOptions {
   printBackground?: boolean;
   generateDocumentOutline?: boolean;
   scale?: number;
+  preferCSSPageSize?: boolean;
 }
 
 /** Candidate browser executables for this OS, most preferred first. */
@@ -47,6 +48,77 @@ export function browserCandidates(platform = process.platform, env = process.env
 export function findBrowser(configured?: string): string | undefined {
   if (configured) return existsSync(configured) ? configured : undefined;
   return browserCandidates().find((p) => existsSync(p));
+}
+
+/** Flags shared by both print methods: no first-run UI, no background traffic, no name resolution. */
+function quietFlags(profile: string): string[] {
+  return [
+    `--user-data-dir=${profile}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-extensions',
+    '--disable-background-networking',
+    '--disable-component-update',
+    '--disable-sync',
+    '--disable-default-apps',
+    '--disable-domain-reliability',
+    '--disable-features=Translate,MediaRouter,OptimizationHints',
+    '--host-resolver-rules=MAP * ~NOTFOUND',
+    '--mute-audio',
+    // Chromium refuses to start as root with its sandbox (containers, some remote hosts).
+    ...(process.platform === 'linux' && process.getuid?.() === 0 ? ['--no-sandbox'] : []),
+  ];
+}
+
+/**
+ * Prints with the browser's own `--print-to-pdf` switch (one browser process per file). Page size,
+ * margins, page numbers and header come from the page's CSS `@page` rules. This does not need the
+ * DevTools protocol, which some company policies turn off (RemoteDebuggingAllowed).
+ */
+export function printPdfCli(browser: string, htmlFile: string, o: { outline: boolean; timeoutMs?: number }): Promise<Buffer> {
+  const profile = mkdtempSync(path.join(tmpdir(), 'md-studio-pdf-'));
+  const out = path.join(profile, 'out.pdf');
+  const args = [
+    '--headless',
+    '--disable-gpu',
+    ...quietFlags(profile),
+    '--no-pdf-header-footer',
+    '--print-to-pdf-no-header',
+    ...(o.outline ? ['--generate-pdf-document-outline'] : []),
+    `--print-to-pdf=${out}`,
+    pathToFileURL(htmlFile).href,
+  ];
+  return new Promise((resolve, reject) => {
+    const child = spawn(browser, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    let log = '';
+    const keep = (d: Buffer) => (log = (log + d).slice(-4000));
+    child.stdout?.on('data', keep);
+    child.stderr?.on('data', keep);
+    const timer = setTimeout(() => child.kill(), o.timeoutMs ?? 120_000);
+    const done = (e?: Error) => {
+      clearTimeout(timer);
+      let pdf: Buffer | undefined;
+      try {
+        pdf = readFileSync(out);
+      } catch {
+        /* no output */
+      }
+      setTimeout(() => rmSync(profile, { recursive: true, force: true }), 1000);
+      if (pdf && pdf.length > 0) resolve(pdf);
+      else reject(e ?? new Error(`no PDF was written. ${lastLines(log)}`));
+    };
+    child.on('error', (e) => done(new Error(`cannot start ${browser}: ${e.message}`)));
+    child.on('exit', (code) => done(code ? new Error(`browser exited with code ${code}. ${lastLines(log)}`) : undefined));
+  });
+}
+
+function lastLines(log: string): string {
+  return log
+    .split(/\r?\n/)
+    .filter((l) => l.trim() && !/dbus|Fontconfig|GPU|gpu_|viz_|sandbox/i.test(l))
+    .slice(-3)
+    .join(' ')
+    .trim();
 }
 
 class Cdp {
@@ -120,25 +192,7 @@ export class PdfPrinter {
     const profile = mkdtempSync(path.join(tmpdir(), 'md-studio-pdf-'));
     const child = spawn(
       browser,
-      [
-        '--headless=new',
-        '--remote-debugging-pipe',
-        `--user-data-dir=${profile}`,
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-extensions',
-        '--disable-background-networking',
-        '--disable-component-update',
-        '--disable-sync',
-        '--disable-default-apps',
-        '--disable-domain-reliability',
-        '--disable-features=Translate,MediaRouter,OptimizationHints',
-        '--host-resolver-rules=MAP * ~NOTFOUND',
-        '--mute-audio',
-        // Chromium refuses to start as root with its sandbox (containers, some remote hosts).
-        ...(process.platform === 'linux' && process.getuid?.() === 0 ? ['--no-sandbox'] : []),
-        'about:blank',
-      ],
+      ['--headless=new', '--remote-debugging-pipe', ...quietFlags(profile), 'about:blank'],
       { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'], windowsHide: true },
     );
     let stderr = '';
@@ -191,7 +245,7 @@ export class PdfPrinter {
         { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true },
         sessionId,
       );
-      const { data } = await this.cdp.send('Page.printToPDF', { ...options, preferCSSPageSize: false }, sessionId);
+      const { data } = await this.cdp.send('Page.printToPDF', { ...options }, sessionId);
       return Buffer.from(data, 'base64');
     } finally {
       await this.cdp.send('Target.closeTarget', { targetId }).catch(() => undefined);

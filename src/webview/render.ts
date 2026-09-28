@@ -59,7 +59,7 @@ export async function renderMarkdown(
   main: HTMLElement,
   markdown: string,
   settings: ExportSettings,
-  options: { highlight: boolean },
+  options: { highlight: boolean; fontFamily?: string },
   resolveImages: (srcs: string[]) => Promise<Record<string, string>>,
 ): Promise<RenderResult> {
   const problems: string[] = [];
@@ -73,6 +73,15 @@ export async function renderMarkdown(
   let version = '';
   if (blocks.length > 0) {
     const mermaid = await loadMermaid(settings.mermaid);
+    if (options.fontFamily) {
+      // Draw (and measure) diagram text with the export font; a diagram's own config: still wins.
+      const cfg = settings.mermaid.config;
+      mermaid.initialize({
+        ...cfg,
+        fontFamily: options.fontFamily,
+        themeVariables: { ...((cfg.themeVariables as object) ?? {}), fontFamily: options.fontFamily },
+      });
+    }
     version = await mermaidVersion(mermaid);
     let i = 0;
     for (const code of blocks) {

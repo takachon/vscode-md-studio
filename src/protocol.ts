@@ -72,6 +72,9 @@ export interface ExportOptions {
   tocDepth: number;
   tocTitle: string;
   openAfter: boolean;
+  /** Body font: `editor` = VS Code's markdown.preview.fontFamily, a preset, or `custom`. */
+  font: FontPreset;
+  fontCustom: string;
   html: {
     toc: 'none' | 'top' | 'sidebar';
     theme: 'light' | 'dark' | 'auto';
@@ -85,8 +88,12 @@ export interface ExportOptions {
     margin: 'narrow' | 'normal' | 'wide';
     pageNumbers: boolean;
     headerTitle: boolean;
+    /** Body text size in points. */
+    fontSize: number;
   };
 }
+
+export type FontPreset = 'editor' | 'yugothic' | 'meiryo' | 'bizud-gothic' | 'yumincho' | 'bizud-mincho' | 'custom';
 
 export interface Heading {
   level: number;
@@ -98,7 +105,7 @@ export type HostToExporter =
   | { type: 'init'; fileName: string; options: ExportOptions; target: string; browser: string | null }
   | { type: 'target'; target: string }
   | { type: 'start' }
-  | { type: 'render'; markdown: string; highlight: boolean }
+  | { type: 'render'; markdown: string; highlight: boolean; fontFamily?: string }
   | { type: 'images'; images: Record<string, string> }
   | { type: 'status'; message: string }
   | { type: 'result'; ok: boolean; message: string; problems: string[] };

@@ -2,10 +2,10 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { exportDocument, exportPanelHtml, tocHtml } from './html';
-import { PAPER_SIZES, PdfPrinter, findBrowser, namedDestinationPages, type PrintOptions } from './pdf';
-import type { ExportOptions, ExporterToHost, Heading, HostToExporter, ImageMode } from './protocol';
-import { SECTION, resolveMermaid, toSetup } from './settings';
+import { bodyFontFamily, detectLang, exportDocument, exportPanelHtml, pageCss, tocHtml } from './html';
+import { PdfPrinter, findBrowser, namedDestinationPages, printPdfCli } from './pdf';
+import type { ExportOptions, ExporterToHost, FontPreset, Heading, HostToExporter, ImageMode } from './protocol';
+import { SECTION, editorFont, resolveMermaid, toSetup } from './settings';
 import type { Log } from './log';
 
 const MIME: Record<string, string> = {
@@ -20,6 +20,21 @@ const MIME: Record<string, string> = {
   '.avif': 'image/avif',
 };
 
+/** CSS font-family lists for the font choices of the Export panel (Windows name first, then macOS / Linux). */
+const FONT_PRESETS: Record<Exclude<FontPreset, 'editor' | 'custom'>, string> = {
+  yugothic: `"Yu Gothic Medium","Yu Gothic",YuGothic,"Hiragino Sans"`,
+  meiryo: `Meiryo,"Meiryo UI","Hiragino Sans"`,
+  'bizud-gothic': `"BIZ UDPGothic","BIZ UDPゴシック","Yu Gothic Medium","Hiragino Sans"`,
+  yumincho: `"Yu Mincho",YuMincho,"Hiragino Mincho ProN","Noto Serif CJK JP","IPAPMincho",serif`,
+  'bizud-mincho': `"BIZ UDPMincho","BIZ UDP明朝 Medium","Yu Mincho",YuMincho,"Hiragino Mincho ProN","Noto Serif CJK JP",serif`,
+};
+
+function fontFamily(o: ExportOptions, scope: vscode.Uri): string {
+  if (o.font === 'custom') return o.fontCustom;
+  if (o.font === 'editor') return editorFont(scope).family;
+  return FONT_PRESETS[o.font] ?? '';
+}
+
 /** Export options from the user's settings. */
 export function defaultOptions(scope?: vscode.Uri): ExportOptions {
   const e = vscode.workspace.getConfiguration(`${SECTION}.export`, scope);
@@ -31,6 +46,8 @@ export function defaultOptions(scope?: vscode.Uri): ExportOptions {
     tocDepth: Math.min(Math.max(e.get('tocDepth', 3), 1), 6),
     tocTitle: e.get('tocTitle', 'Contents'),
     openAfter: e.get('openAfter', false),
+    font: e.get('font', 'editor'),
+    fontCustom: e.get('fontCustom', ''),
     html: { toc: e.get('toc', 'none'), theme: e.get('theme', 'light'), maxWidth: e.get('maxWidth', 1180) },
     pdf: {
       toc: p.get('toc', true),
@@ -40,6 +57,7 @@ export function defaultOptions(scope?: vscode.Uri): ExportOptions {
       margin: p.get('margin', 'normal'),
       pageNumbers: p.get('pageNumbers', true),
       headerTitle: p.get('headerTitle', false),
+      fontSize: p.get('fontSize', 10.5),
     },
   };
 }
@@ -55,6 +73,8 @@ async function saveDefaults(o: ExportOptions): Promise<void> {
     e.update('tocDepth', o.tocDepth, g),
     e.update('tocTitle', o.tocTitle, g),
     e.update('openAfter', o.openAfter, g),
+    e.update('font', o.font, g),
+    e.update('fontCustom', o.fontCustom, g),
     e.update('toc', o.html.toc, g),
     e.update('theme', o.html.theme, g),
     e.update('maxWidth', o.html.maxWidth, g),
@@ -152,33 +172,51 @@ async function resolveImages(
   return { map, count: Object.keys(map).length };
 }
 
-const MARGINS = { narrow: 0.4, normal: 0.6, wide: 1 };
+/**
+ * Prints with `--print-to-pdf` first and falls back to the DevTools protocol; the reasons of both
+ * failures are reported, since company policies can turn off either (or headless mode altogether).
+ */
+class BrowserPrint {
+  private mode: 'cli' | 'cdp' = 'cli';
+  private printer: PdfPrinter | undefined;
+  private cliError: Error | undefined;
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+  constructor(
+    private readonly browser: string,
+    private readonly outline: boolean,
+    private readonly log: Log,
+  ) {}
 
-function printOptions(o: ExportOptions, title: string): PrintOptions {
-  const [w, h] = PAPER_SIZES[o.pdf.paper] ?? PAPER_SIZES.A4;
-  const m = MARGINS[o.pdf.margin] ?? MARGINS.normal;
-  const hf = o.pdf.pageNumbers || o.pdf.headerTitle;
-  const small = 'font-size:8pt;color:#777;width:100%;padding:0 0.5in;font-family:sans-serif';
-  return {
-    paperWidth: w,
-    paperHeight: h,
-    landscape: o.pdf.landscape,
-    marginTop: o.pdf.headerTitle ? Math.max(m, 0.6) : m,
-    marginBottom: o.pdf.pageNumbers ? Math.max(m, 0.6) : m,
-    marginLeft: m,
-    marginRight: m,
-    printBackground: true,
-    displayHeaderFooter: hf,
-    headerTemplate: o.pdf.headerTitle ? `<div style="${small};text-align:left">${escapeHtml(title)}</div>` : '<span></span>',
-    footerTemplate: o.pdf.pageNumbers
-      ? `<div style="${small};text-align:center"><span class="pageNumber"></span> / <span class="totalPages"></span></div>`
-      : '<span></span>',
-    generateDocumentOutline: o.pdf.bookmarks,
-  };
+  async print(file: string): Promise<Buffer> {
+    if (this.mode === 'cli') {
+      try {
+        const pdf = await printPdfCli(this.browser, file, { outline: this.outline });
+        this.log.info(`export: printed with ${this.browser} (--print-to-pdf)`);
+        return pdf;
+      } catch (e) {
+        this.cliError = e as Error;
+        this.log.warn(`export: --print-to-pdf failed: ${(e as Error).message}; trying the DevTools protocol`);
+        this.mode = 'cdp';
+      }
+    }
+    try {
+      this.printer ??= await PdfPrinter.launch(this.browser);
+      const pdf = await this.printer.print(file, { printBackground: true, preferCSSPageSize: true, generateDocumentOutline: this.outline });
+      this.log.info(`export: printed with ${await this.printer.version()} (DevTools protocol)`);
+      return pdf;
+    } catch (e) {
+      throw new Error(
+        `Could not print the PDF with ${this.browser}. ` +
+          `--print-to-pdf: ${this.cliError?.message ?? 'not tried'} / DevTools: ${(e as Error).message}. ` +
+          'If Edge is managed by your company, open edge://policy and check HeadlessModeEnabled and RemoteDebuggingAllowed, ' +
+          'or set mdStudio.pdf.browserPath to another browser (e.g. Chrome). Exporting HTML and printing it from the browser also works.',
+      );
+    }
+  }
+
+  async close(): Promise<void> {
+    await this.printer?.close();
+  }
 }
 
 /** One Export panel per Markdown file. */
@@ -350,7 +388,12 @@ class ExportPanel {
           if (m.type === 'failed') reject(new Error(m.message));
           else resolve({ ...m, images: imageCount });
         };
-        this.post({ type: 'render', markdown: this.doc.getText(), highlight: options.highlight });
+        this.post({
+          type: 'render',
+          markdown: this.doc.getText(),
+          highlight: options.highlight,
+          fontFamily: bodyFontFamily(fontFamily(options, this.doc.uri)),
+        });
       },
     );
   }
@@ -371,6 +414,8 @@ class ExportPanel {
       const codeCss = { light: await readCss('github.min.css'), dark: await readCss('github-dark.min.css') };
       const version = String(this.context.extension.packageJSON.version ?? '');
       const generator = `MD Studio ${version}${r.mermaidVersion ? ` (Mermaid ${r.mermaidVersion})` : ''}`;
+      const font = { family: fontFamily(options, this.doc.uri), code: editorFont(this.doc.uri).codeFamily, pdfSize: options.pdf.fontSize };
+      const lang = detectLang(this.doc.getText());
       let bytes: Uint8Array;
       let pages = 0;
 
@@ -382,7 +427,7 @@ class ExportPanel {
                 position: options.html.toc,
                 html: tocHtml(r.headings, { depth: options.tocDepth, title: options.tocTitle, className: `toc-${options.html.toc}` }),
               };
-        const html = exportDocument({ title, body: r.html, codeCss, generator, theme: options.html.theme, maxWidth: options.html.maxWidth, toc });
+        const html = exportDocument({ title, body: r.html, codeCss, generator, theme: options.html.theme, maxWidth: options.html.maxWidth, toc, font, lang });
         if (/<script[\s>]/i.test(html)) throw new Error('internal error: exported HTML contains <script>');
         bytes = Buffer.from(html, 'utf8');
       } else {
@@ -407,25 +452,26 @@ class ExportPanel {
                   }) + '\n<div class="toc-page-break"></div>',
               }
             : undefined;
-          return exportDocument({ title, body: r.html, codeCss, generator, theme: 'light', maxWidth: 0, toc, print: true });
+          return exportDocument({
+            title, body: r.html, codeCss, generator, theme: 'light', maxWidth: 0, toc, print: true, font, lang,
+            pageCss: pageCss(options, title),
+          });
         };
         const dir = mkdtempSync(path.join(tmpdir(), 'md-studio-export-'));
-        const printer = await PdfPrinter.launch(browser);
+        const printer = new BrowserPrint(browser, options.pdf.bookmarks, this.log);
         try {
           const file = path.join(dir, 'document.html');
-          const print = printOptions(options, title);
           writeFileSync(file, build());
-          let pdf = await printer.print(file, print);
+          let pdf = await printer.print(file);
           if (options.pdf.toc && r.headings.length > 0) {
             // Second pass with the page numbers the first pass produced (layout is identical).
             const found = namedDestinationPages(pdf);
             if (found.size === 0) problems.push('Could not read page numbers for the table of contents.');
             writeFileSync(file, build(found));
-            pdf = await printer.print(file, print);
+            pdf = await printer.print(file);
           }
           bytes = pdf;
           pages = (pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length;
-          this.log.info(`export: printed with ${await printer.version()}`);
         } finally {
           await printer.close();
           rmSync(dir, { recursive: true, force: true });

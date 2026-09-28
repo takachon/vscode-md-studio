@@ -1,5 +1,5 @@
 // HTML for the webviews and for exported files. No `vscode` import so it can be used from tests.
-import type { EditorSettings, ExportSettings, Heading } from './protocol';
+import type { EditorSettings, ExportOptions, ExportSettings, Heading } from './protocol';
 
 export function nonce(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -119,6 +119,35 @@ export interface DocumentParts {
   toc?: { html: string; position: 'top' | 'sidebar' | 'page' };
   /** Print layout for PDF. */
   print?: boolean;
+  /** CSS font-family lists; Japanese fallbacks are appended. */
+  font?: { family?: string; code?: string; pdfSize?: number };
+  /** Document language (`ja` makes browsers pick Japanese glyphs). */
+  lang?: string;
+  /** @page rules for PDF (paper, margins, page numbers, header). */
+  pageCss?: string;
+}
+
+/** Fallbacks so that Japanese never ends up in a Chinese or missing font, on any OS. */
+export const JA_FALLBACK = `"Yu Gothic UI","Yu Gothic Medium","Meiryo","Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP","IPAPGothic",sans-serif`;
+const DEFAULT_FAMILY = `-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial`;
+const DEFAULT_CODE = `ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono"`;
+/** Japanese glyphs inside code (comments, paths) in a fixed-width Japanese font. */
+const JA_CODE_FALLBACK = `"BIZ UDGothic","MS Gothic","Osaka-Mono","Noto Sans Mono CJK JP","IPAGothic",monospace`;
+
+/** The complete body font list (choice + defaults + Japanese fallbacks). */
+export function bodyFontFamily(family?: string): string {
+  return `${fontList(family, DEFAULT_FAMILY)},${JA_FALLBACK}`;
+}
+
+/** `ja` when the text contains kana or kanji, otherwise `en`. */
+export function detectLang(text: string): string {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(text) ? 'ja' : 'en';
+}
+
+/** Safe CSS font-family list (no braces / semicolons that could break out of the rule), or `fallback`. */
+function fontList(list: string | undefined, fallback: string): string {
+  const clean = (list ?? '').replace(/[{};<>\\]/g, '').trim().replace(/,\s*$/, '');
+  return clean || fallback;
 }
 
 /** The exported single-file page. No <script>, everything inline. */
@@ -134,7 +163,7 @@ export function exportDocument(o: DocumentParts): string {
 ${o.toc && o.toc.position !== 'sidebar' ? o.toc.html + '\n' : ''}${o.body}
 </main>`;
   return `<!doctype html>
-<html lang="en">
+<html lang="${attr(o.lang ?? 'en')}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -143,6 +172,7 @@ ${o.toc && o.toc.position !== 'sidebar' ? o.toc.html + '\n' : ''}${o.body}
 <style>
 ${codeCss}
 ${exportCss(o)}
+${o.pageCss ?? ''}
 </style>
 </head>
 <body class="theme-${o.theme}${sidebar ? ' with-sidebar' : ''}${o.print ? ' print' : ''}">
@@ -168,7 +198,7 @@ function exportCss(o: DocumentParts): string {
   return `${vars}
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI",Meiryo,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;word-wrap:break-word}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:${bodyFontFamily(o.font?.family)};font-size:16px;line-height:1.6;word-wrap:break-word}
 .markdown-body{max-width:${o.maxWidth}px;margin:0 auto;padding:32px 24px 64px;min-width:0}
 .markdown-body>*:first-child{margin-top:0}
 h1,h2,h3,h4,h5,h6{margin:24px 0 16px;font-weight:600;line-height:1.25;scroll-margin-top:16px}
@@ -183,7 +213,7 @@ ul:has(>li>input[type=checkbox]){list-style:none}
 blockquote{padding:0 1em;color:var(--muted);border-left:.25em solid var(--border)}
 hr{height:.25em;padding:0;margin:24px 0;background:var(--border);border:0}
 img{max-width:100%;height:auto}
-code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:85%}
+code,kbd,pre,samp{font-family:${fontList(o.font?.code, DEFAULT_CODE)},${JA_CODE_FALLBACK};font-size:85%}
 :not(pre)>code{padding:.2em .4em;background:var(--code-bg);border-radius:6px}
 pre{padding:16px;overflow:auto;line-height:1.45;background:var(--subtle);border-radius:6px}
 pre>code{padding:0;background:transparent;font-size:100%}
@@ -217,7 +247,7 @@ ${dark}
 .toc-sidebar .toc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 .toc-page-break{break-after:page}
-body.print{font-size:11pt}
+body.print{font-size:${o.font?.pdfSize ?? 10.5}pt}
 body.print .markdown-body{max-width:none;padding:0}
 body.print pre{white-space:pre-wrap;word-break:break-word;overflow:visible}
 body.print table{display:table;width:auto;overflow:visible}
@@ -230,4 +260,35 @@ h1,h2,h3,h4,h5,h6{break-after:avoid}
 pre,table,.mermaid,img,blockquote{break-inside:avoid}
 tr,li{break-inside:avoid}
 }`;
+}
+
+const PAPER_MM: Record<string, [number, number]> = {
+  A4: [210, 297],
+  A3: [297, 420],
+  B5: [182, 257],
+  Letter: [215.9, 279.4],
+  Legal: [215.9, 355.6],
+};
+const MARGIN_MM = { narrow: 10, normal: 15, wide: 25 };
+
+/** A CSS string literal (also safe inside <style>). */
+function cssString(s: string): string {
+  return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ').replace(/</g, '\\3c ')}"`;
+}
+
+/**
+ * Paper, margins, page numbers and header as CSS @page rules, so that both print methods
+ * (--print-to-pdf and the DevTools protocol) produce the same pages.
+ */
+export function pageCss(o: ExportOptions, title: string): string {
+  let [w, h] = PAPER_MM[o.pdf.paper] ?? PAPER_MM.A4;
+  if (o.pdf.landscape) [w, h] = [h, w];
+  const m = MARGIN_MM[o.pdf.margin] ?? MARGIN_MM.normal;
+  const top = o.pdf.headerTitle ? Math.max(m, 15) : m;
+  const bottom = o.pdf.pageNumbers ? Math.max(m, 15) : m;
+  const box = 'font-size:8pt;color:#777;font-family:sans-serif';
+  const boxes =
+    (o.pdf.pageNumbers ? `@bottom-center{content:counter(page) " / " counter(pages);${box}}` : '') +
+    (o.pdf.headerTitle ? `@top-left{content:${cssString(title)};${box}}` : '');
+  return `@page{size:${w}mm ${h}mm;margin:${top}mm ${m}mm ${bottom}mm;${boxes}}`;
 }

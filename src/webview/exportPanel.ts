@@ -34,7 +34,7 @@ window.addEventListener('message', (event: MessageEvent<HostToExporter>) => {
       startExport();
       break;
     case 'render':
-      renderMarkdown(out, msg.markdown, settings, { highlight: msg.highlight }, (srcs) =>
+      renderMarkdown(out, msg.markdown, settings, { highlight: msg.highlight, fontFamily: msg.fontFamily }, (srcs) =>
         new Promise((resolve) => {
           imagesResolve = resolve;
           post({ type: 'needImages', srcs });
@@ -96,6 +96,27 @@ function buildForm(fileName: string, browser: string | null): void {
         <div class="field"><label for="tocTitle">Contents title</label><input id="tocTitle" name="tocTitle" type="text"></div>
       </div>
       ${check('highlight', 'Syntax highlighting for code blocks')}
+    </section>
+
+    <section>
+      <h2>Font</h2>
+      <div class="grid">
+        <div class="field"><label>Text font</label>
+          ${select('font', [
+            ['editor', 'Same as the editor (VS Code setting)'],
+            ['yugothic', 'Yu Gothic (游ゴシック)'],
+            ['meiryo', 'Meiryo (メイリオ)'],
+            ['bizud-gothic', 'BIZ UDPGothic (BIZ UDPゴシック)'],
+            ['yumincho', 'Yu Mincho (游明朝)'],
+            ['bizud-mincho', 'BIZ UDPMincho (BIZ UDP明朝)'],
+            ['custom', 'Other…'],
+          ])}</div>
+        <div class="field only-custom-font"><label for="fontCustom">Font names (CSS)</label>
+          <input id="fontCustom" name="fontCustom" type="text" placeholder="&quot;Noto Sans JP&quot;, Meiryo" spellcheck="false"></div>
+        <div class="field only-pdf"><label>Text size (PDF)</label>
+          ${select('pdf.fontSize', [['9', '9 pt'], ['10', '10 pt'], ['10.5', '10.5 pt'], ['11', '11 pt'], ['12', '12 pt']])}</div>
+      </div>
+      <p class="note">Code uses the editor font (<code>editor.fontFamily</code>). The font must be installed on the PC that opens the HTML; PDF embeds it.</p>
     </section>
 
     <section class="only-html">
@@ -164,6 +185,7 @@ function buildForm(fileName: string, browser: string | null): void {
       updateVisibility();
     });
   }
+  field<HTMLSelectElement>('font').addEventListener('change', updateVisibility);
   updateVisibility();
 }
 
@@ -182,6 +204,8 @@ function fill(o: ExportOptions): void {
   set('tocDepth', o.tocDepth);
   set('tocTitle', o.tocTitle);
   set('openAfter', o.openAfter);
+  set('font', o.font);
+  set('fontCustom', o.fontCustom);
   set('html.toc', o.html.toc);
   set('html.theme', o.html.theme);
   set('html.maxWidth', o.html.maxWidth);
@@ -204,6 +228,8 @@ function read(): ExportOptions {
     tocDepth: Number(val('tocDepth')),
     tocTitle: String(val('tocTitle')),
     openAfter: bool('openAfter'),
+    font: val('font') as ExportOptions['font'],
+    fontCustom: String(val('fontCustom')),
     html: {
       toc: val('html.toc') as ExportOptions['html']['toc'],
       theme: val('html.theme') as ExportOptions['html']['theme'],
@@ -217,6 +243,7 @@ function read(): ExportOptions {
       margin: val('pdf.margin') as ExportOptions['pdf']['margin'],
       pageNumbers: bool('pdf.pageNumbers'),
       headerTitle: bool('pdf.headerTitle'),
+      fontSize: Number(val('pdf.fontSize')) || 10.5,
     },
   };
 }
@@ -225,6 +252,7 @@ function updateVisibility(): void {
   const format = read().format;
   app.classList.toggle('is-pdf', format === 'pdf');
   app.classList.toggle('is-html', format === 'html');
+  app.classList.toggle('is-custom-font', read().font === 'custom');
 }
 
 function setBusy(b: boolean): void {

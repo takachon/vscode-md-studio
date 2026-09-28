@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- PDF export works where Edge refuses remote debugging (company policy): printing uses the browser's `--print-to-pdf` first and falls back to the DevTools protocol. Paper, margins, page numbers and header are CSS `@page` rules, so both give the same pages. A failure now explains what to check (`edge://policy`).
+- Export font: same as the editor (VS Code `markdown.preview.fontFamily`), Yu Gothic, Meiryo, BIZ UDPGothic, Yu Mincho, BIZ UDPMincho or any font names; PDF text size. Diagrams are drawn with the export font.
+- Japanese documents are exported with `lang="ja"` and Japanese fallback fonts (also for code), so Japanese text never falls back to a Chinese font.
+
 ## 0.2.0
 
 - Word-like editing by default (formatting only, no Markdown symbols). Ctrl+B / Ctrl+I etc. no longer reach VS Code (Ctrl+B does not toggle the side bar).

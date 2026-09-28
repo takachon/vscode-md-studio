@@ -2,7 +2,7 @@
   "name": "md-studio",
   "displayName": "MD Studio",
   "description": "WYSIWYG Markdown editor with a bundled, configurable Mermaid and single-file HTML export. Works fully offline.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "internal",
   "private": true,
   "license": "MIT",
@@ -385,6 +385,41 @@
           ],
           "default": "prompt",
           "markdownDescription": "What to do when a newer version is found in `#mdStudio.update.source#`."
+        },
+        "mdStudio.export.font": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "yugothic",
+            "meiryo",
+            "bizud-gothic",
+            "yumincho",
+            "bizud-mincho",
+            "custom"
+          ],
+          "enumDescriptions": [
+            "Same as the editor: VS Code's `markdown.preview.fontFamily`.",
+            "Yu Gothic (游ゴシック)",
+            "Meiryo (メイリオ)",
+            "BIZ UDPGothic (BIZ UDPゴシック)",
+            "Yu Mincho (游明朝)",
+            "BIZ UDPMincho (BIZ UDP明朝)",
+            "The font names in `mdStudio.export.fontCustom`."
+          ],
+          "default": "editor",
+          "markdownDescription": "Text font of exported HTML and PDF. Code always uses `editor.fontFamily`."
+        },
+        "mdStudio.export.fontCustom": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "CSS font-family list used when `#mdStudio.export.font#` is `custom`, e.g. `\"Noto Sans JP\", Meiryo`."
+        },
+        "mdStudio.pdf.fontSize": {
+          "type": "number",
+          "default": 10.5,
+          "minimum": 6,
+          "maximum": 24,
+          "markdownDescription": "Body text size of exported PDF, in points."
         }
       }
     }

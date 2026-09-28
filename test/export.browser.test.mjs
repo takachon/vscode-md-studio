@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from './browser/server.mjs';
 import { launch, offlinePage, fixtures, readFixtureImages } from './browser/util.mjs';
-import { exportDocument, tocHtml } from '../src/html.ts';
-import { PdfPrinter, namedDestinationPages } from '../src/pdf.ts';
+import { exportDocument, pageCss, tocHtml } from '../src/html.ts';
+import { PdfPrinter, namedDestinationPages, printPdfCli } from '../src/pdf.ts';
 
 let srv, browser;
 before(async () => {
@@ -107,7 +107,12 @@ test('settings theme applies, frontmatter wins', async () => {
   assert.match(second, /#cde498/i);
 });
 
-test('PDF: contents page with page numbers, bookmarks, offline', async () => {
+const pdfOptions = {
+  pdf: { paper: 'A4', landscape: false, margin: 'normal', pageNumbers: true, headerTitle: true, toc: true, bookmarks: true, fontSize: 10.5 },
+};
+const pageSize = (pdf) => /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(pdf.toString('latin1')).slice(1).map(Number);
+
+test('PDF: contents page with page numbers, bookmarks; --print-to-pdf and DevTools give the same pages', async () => {
   const markdown = await readFile(join(fixtures, 'sample.md'), 'utf8');
   const long = markdown + '\n\n' + Array.from({ length: 40 }, (_, i) => `## Section ${i + 1}\n\n${'Lorem ipsum dolor sit amet. '.repeat(30)}\n`).join('\n');
   const { result } = await runExport(long);
@@ -115,29 +120,39 @@ test('PDF: contents page with page numbers, bookmarks, offline', async () => {
   const build = (pages) =>
     exportDocument({
       title: 'Sample', body: result.html, codeCss: { light: css, dark: '' }, maxWidth: 0, generator: 'test', theme: 'light', print: true,
+      pageCss: pageCss(pdfOptions, 'Sample "title"'),
       toc: { position: 'page', html: tocHtml(result.headings, { depth: 2, title: 'Contents', className: 'toc-pdf', pages, placeholder: !pages }) + '<div class="toc-page-break"></div>' },
     });
   const dir = await mkdtemp(join(tmpdir(), 'md-studio-pdf-'));
   const file = join(dir, 'doc.html');
-  const exe = process.env.CHROMIUM_PATH ?? browser.process?.()?.spawnfile ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+  const exe = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
+  // --print-to-pdf (the default method)
+  await writeFile(file, build());
+  const pass1 = await printPdfCli(exe, file, { outline: true });
+  const pages = namedDestinationPages(pass1);
+  assert.ok(pages.size >= 40, `named destinations: ${pages.size}`);
+  assert.ok(pages.get('md-studio-sample') >= 2, 'contents pages come first');
+  assert.ok(pages.get('section-40') > pages.get('section-1'));
+  await writeFile(file, build(pages));
+  const pass2 = await printPdfCli(exe, file, { outline: true });
+  assert.deepEqual([...namedDestinationPages(pass2)], [...pages], 'page numbers do not move in the second pass');
+  assert.match(pass2.toString('latin1'), /\/Outlines/);
+  const [w, h] = pageSize(pass2);
+  assert.ok(Math.abs(w - 595.3) < 1 && Math.abs(h - 841.9) < 1, `A4 size: ${w} x ${h}`);
+  await writeFile(join(dir, 'out.pdf'), pass2);
+
+  // DevTools protocol (the fallback) lays out the same pages.
   const printer = await PdfPrinter.launch(exe);
   try {
-    const opts = { paperWidth: 8.27, paperHeight: 11.69, printBackground: true, generateDocumentOutline: true, displayHeaderFooter: true,
-      headerTemplate: '<span></span>', footerTemplate: '<div style="font-size:8pt;width:100%;text-align:center"><span class="pageNumber"></span></div>', marginTop: 0.6, marginBottom: 0.6, marginLeft: 0.6, marginRight: 0.6 };
-    await writeFile(file, build());
-    const pass1 = await printer.print(file, opts);
-    const pages = namedDestinationPages(pass1);
-    assert.ok(pages.size >= 40, `named destinations: ${pages.size}`);
-    assert.ok(pages.get('md-studio-sample') >= 2, 'contents pages come first');
-    assert.ok(pages.get('section-40') > pages.get('section-1'));
-    await writeFile(file, build(pages));
-    const pass2 = await printer.print(file, opts);
-    assert.deepEqual([...namedDestinationPages(pass2)], [...pages], 'page numbers do not move in the second pass');
-    const s = pass2.toString('latin1');
-    assert.match(s, /\/Outlines/);
-    assert.ok((s.match(/\/Type\s*\/Page\b/g) ?? []).length >= 5);
-    await writeFile(join(dir, 'out.pdf'), pass2);
+    const viaCdp = await printer.print(file, { printBackground: true, preferCSSPageSize: true, generateDocumentOutline: true });
+    assert.deepEqual([...namedDestinationPages(viaCdp)], [...pages]);
+    assert.deepEqual(pageSize(viaCdp).map(Math.round), [w, h].map(Math.round));
   } finally {
     await printer.close();
   }
+});
+
+test('PDF: a browser that cannot start gives a clear error', async () => {
+  await assert.rejects(printPdfCli('/nonexistent/msedge', '/tmp/x.html', { outline: false }), /cannot start \/nonexistent\/msedge/);
 });
