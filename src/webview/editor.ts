@@ -1,6 +1,10 @@
-import type { EditorSettings, EditorToHost, HostToEditor, ToolbarCommand } from '../protocol';
+import type { EditorSettings, EditorToHost, HostToEditor } from '../protocol';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion, type MermaidApi } from './mermaidLoader';
 import { closeLightbox, lightboxOpen, showLightbox } from './lightbox';
+import { toolbarItems } from './toolbar';
+import { installImageMenu } from './imageMenu';
+import { installOutlineSpy } from './outlineSpy';
+import { asImage, installInlineImages } from './inlineImages';
 
 interface VditorInstance {
   getValue(): string;
@@ -93,6 +97,7 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let lastSent: string | undefined;
 let nextRequest = 1;
 const pendingImages = new Map<number, (r: { path?: string; error?: string }) => void>();
+const pendingInputs = new Map<number, (value: string | undefined) => void>();
 
 function sendEdit(): void {
   if (timer) {
@@ -133,22 +138,10 @@ function create(text: string): void {
     counter: { enable: false },
     typewriterMode: false,
     toolbarConfig: { hide: !settings.toolbar, pin: true },
-    // Laid out like Office Viewer's Markdown editor (both are built on Vditor's IR mode):
-    // outline on the left, file actions first, then formatting, lists, blocks, history.
-    toolbar: [
-      'outline',
-      '|',
-      button('md-open-text', 'Open as Text Editor', ICONS.openText, 'openText'),
-      button('md-save', 'Save (Ctrl+S)', ICONS.save, 'save'),
-      button('md-export', 'Export to Single HTML File', ICONS.export, 'export'),
-      '|',
-      'headings', 'bold', 'italic', 'strike', 'link', '|',
-      'list', 'ordered-list', 'check', 'outdent', 'indent', 'table', '|',
-      'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', 'upload', 'emoji', '|',
-      'undo', 'redo', '|',
-      'edit-mode',
-      button('md-settings', 'MD Studio Settings', ICONS.settings, 'settings'),
-    ],
+    toolbar: toolbarItems((command) => {
+      sendEdit();
+      post({ type: 'command', command });
+    }),
     outline: { enable: settings.outline, position: 'left' },
     hint: { emojiPath: `${cdn}/dist/images/emoji` },
     preview: {
@@ -174,32 +167,11 @@ function create(text: string): void {
     blur: sendEdit,
     after: () => {
       sendBaseline();
+      installOutlineSpy();
       // Load Mermaid in the background so its version is known even without diagrams.
       setTimeout(() => void mermaidReady().catch(() => undefined), 500);
     },
   });
-}
-
-const svg = (body: string) =>
-  `<svg viewBox="0 0 16 16" style="fill:none" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">${body}</svg>`;
-const ICONS = {
-  openText: svg('<path d="M3 1.5h6.5L13 5v9.5H3z"/><path d="M9.5 1.5V5H13M5.5 8h5M5.5 10.5h5M5.5 13h3"/>'),
-  save: svg('<path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5V2.5M4.5 13.5V9.5h7v4"/>'),
-  export: svg('<path d="M8 2v8M5 7l3 3 3-3"/><path d="M2.5 10.5v3h11v-3"/>'),
-  settings: svg('<circle cx="8" cy="8" r="2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'),
-};
-
-function button(name: string, tip: string, icon: string, command: ToolbarCommand) {
-  return {
-    name,
-    tip,
-    tipPosition: 's',
-    icon,
-    click: () => {
-      sendEdit();
-      post({ type: 'command', command });
-    },
-  };
 }
 
 async function uploadImages(files: File[]): Promise<null> {
@@ -260,6 +232,10 @@ window.addEventListener('message', (event: MessageEvent<HostToEditor>) => {
       post({ type: 'flushed', requestId: msg.requestId, text, syncId });
       break;
     }
+    case 'inputResult':
+      pendingInputs.get(msg.requestId)?.(msg.value);
+      pendingInputs.delete(msg.requestId);
+      break;
     case 'imageSaved':
       pendingImages.get(msg.requestId)?.({ path: msg.path, error: msg.error });
       pendingImages.delete(msg.requestId);
@@ -271,6 +247,13 @@ window.addEventListener('message', (event: MessageEvent<HostToEditor>) => {
 window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') sendEdit();
 }, true);
+
+// Word-like shortcuts: when Vditor handled a Ctrl/Cmd key (it calls preventDefault), stop the event
+// before it reaches the window, where VS Code's webview host forwards keys to the workbench
+// (otherwise Ctrl+B would also toggle the side bar).
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.defaultPrevented && !/^[sp]$/i.test(e.key)) e.stopPropagation();
+});
 
 // Ctrl/Cmd+click opens links (the webview cannot navigate by itself).
 document.addEventListener('click', (e) => {
@@ -342,9 +325,10 @@ function markdownSrc(img: HTMLImageElement): string | undefined {
 document.addEventListener('click', (e) => {
   if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
   const target = e.target as HTMLElement;
-  const img = target.closest<HTMLImageElement>('.vditor-reset img');
-  if (img && img.naturalWidth > 0) {
-    const src = markdownSrc(img);
+  const hit = target.closest<HTMLElement>('.vditor-reset img, .vditor-reset code.md-inline-img');
+  const img = hit && asImage(hit);
+  if (hit && img && (img.naturalWidth > 0 || !(hit instanceof HTMLImageElement))) {
+    const src = hit instanceof HTMLImageElement ? markdownSrc(img) : hit.dataset.mdSrc;
     showLightbox(img, {
       title: img.getAttribute('alt') || src || '',
       onOpen: src ? () => post({ type: 'openLink', href: src }) : undefined,
@@ -386,4 +370,28 @@ new MutationObserver(() => {
 }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
 installMermaidFacade();
+installInlineImages(settings.linkBase);
+installImageMenu({
+  getValue: () => vditor?.getValue() ?? '',
+  setValue: (md) => {
+    vditor?.setValue(md);
+    sendEdit();
+  },
+  openImage: (href) => post({ type: 'openLink', href }),
+  viewLarge: (img) => showLightbox(img, { title: img.getAttribute('alt') ?? '' }),
+  markdownSrc: (el) => {
+    if (!(el instanceof HTMLImageElement)) {
+      const src = (el as HTMLElement).dataset.mdSrc;
+      return src && !/^[a-z][a-z0-9+.-]*:/i.test(src) ? src : undefined;
+    }
+    const src = el.getAttribute('src') ?? '';
+    return src.startsWith(settings.linkBase) ? src.slice(settings.linkBase.length) : undefined;
+  },
+  askSize: (current) =>
+    new Promise((resolve) => {
+      const requestId = nextRequest++;
+      pendingInputs.set(requestId, resolve);
+      post({ type: 'askImageSize', requestId, current });
+    }),
+});
 post({ type: 'ready' });

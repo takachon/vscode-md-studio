@@ -146,7 +146,7 @@ class EditorSession {
     const settings: EditorSettings = {
       vditorCdn: webview.asWebviewUri(vscode.Uri.joinPath(ext, 'media', 'vendor', 'vditor')).toString(),
       linkBase: webview.asWebviewUri(vscode.Uri.joinPath(this.document.uri, '..')).toString().replace(/\/?$/, '/'),
-      mode: cfg.get('editor.mode', 'ir'),
+      mode: cfg.get('editor.mode', 'wysiwyg'),
       toolbar: cfg.get('editor.toolbar', true),
       outline: cfg.get('editor.outline', true),
       font: editorFont(this.document.uri),
@@ -200,6 +200,16 @@ class EditorSession {
         break;
       case 'openLink':
         void this.openLink(m.href);
+        break;
+      case 'askImageSize':
+        void vscode.window
+          .showInputBox({
+            title: 'Image Size',
+            prompt: 'Display width, e.g. 50% or 400 (pixels). Leave empty for the original size.',
+            value: m.current,
+            validateInput: (v) => (v.trim() === '' || /^\d+(\.\d+)?(%|px)?$/.test(v.trim()) ? undefined : 'Use a number (pixels) or a percentage, e.g. 400 or 50%'),
+          })
+          .then((v) => this.post({ type: 'inputResult', requestId: m.requestId, value: v?.trim().replace(/px$/, '') }));
         break;
       case 'zoom':
         void this.context.globalState.update(ZOOM_KEY, m.value);

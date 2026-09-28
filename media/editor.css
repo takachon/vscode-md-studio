@@ -54,17 +54,48 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[dat
 }
 .md-studio-mermaid-error pre { white-space: pre-wrap; margin: 4px 0 0; font-size: 12px; }
 
-/* Office Viewer–like chrome: centered toolbar on a light bar, outline tree on the left. */
+/* Toolbar like Office Viewer / VS Code: centered, thin 16px icons, rounded hover, subtle dividers. */
 .vditor-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 4px 8px !important;
-  background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background)) !important;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1px;
+  padding: 4px 8px !important; line-height: 1;
+  background: var(--vscode-editor-background) !important;
+  border-bottom: 1px solid var(--vscode-editorGroup-border, var(--vscode-widget-border, rgba(128,128,128,.2))) !important;
 }
-.vditor-toolbar__item { float: none !important; }
-.vditor-toolbar__item .vditor-tooltipped { color: var(--vscode-icon-foreground); }
-.vditor-toolbar__item svg { width: 15px; height: 15px; }
+.vditor-toolbar__item { float: none !important; padding: 0 !important; }
+.vditor-toolbar__item > button, .vditor-toolbar__item > .vditor-tooltipped {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0 !important; border-radius: 5px;
+  color: var(--vscode-icon-foreground, #424242) !important; background: transparent;
+}
+.vditor-toolbar__item svg { width: 16px !important; height: 16px !important; fill: currentColor !important; stroke: none !important; }
+.vditor-toolbar__item > button:hover, .vditor-toolbar__item > .vditor-tooltipped:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.18)) !important;
+  color: var(--vscode-icon-foreground, #424242) !important;
+}
+.vditor-toolbar .vditor-menu--current {
+  background: var(--vscode-inputOption-activeBackground, rgba(0,122,204,.18)) !important;
+  color: var(--vscode-inputOption-activeForeground, #0066bf) !important;
+  outline: 1px solid var(--vscode-inputOption-activeBorder, transparent); outline-offset: -1px;
+}
+.vditor-toolbar .vditor-menu--disabled { opacity: .4; }
+.vditor-toolbar__divider {
+  float: none !important; width: 1px !important; height: 16px !important; margin: 0 6px !important; padding: 0 !important;
+  border: 0 !important; background: var(--vscode-widget-border, rgba(128,128,128,.35));
+}
+/* Tooltips look like VS Code hovers. */
+.vditor-tooltipped::after {
+  font: 12px var(--vscode-font-family, sans-serif) !important; padding: 4px 8px !important; border-radius: 3px !important;
+  color: var(--vscode-editorHoverWidget-foreground, #333) !important; background: var(--vscode-editorHoverWidget-background, #f3f3f3) !important;
+  border: 1px solid var(--vscode-editorHoverWidget-border, #c8c8c8); box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.16));
+}
+.vditor-tooltipped::before { display: none !important; }
+/* Drop-down panels of the toolbar (headings, edit mode). */
+.vditor-panel {
+  font: 13px var(--vscode-font-family, sans-serif) !important;
+  color: var(--vscode-menu-foreground, inherit) !important; background: var(--vscode-menu-background, #fff) !important;
+  border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #ccc)) !important; border-radius: 5px !important;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.2)) !important;
+}
 .vditor-outline {
   background: var(--vscode-sideBar-background, var(--vscode-editor-background)) !important;
   border-right: 1px solid var(--vscode-editorGroup-border, transparent) !important;
@@ -81,8 +112,6 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[dat
 .vditor-ir .vditor-reset > h4:before, .vditor-ir .vditor-reset > h5:before, .vditor-ir .vditor-reset > h6:before,
 .vditor-wysiwyg > .vditor-reset > h1:before, .vditor-wysiwyg > .vditor-reset > h2:before, .vditor-wysiwyg > .vditor-reset > h3:before,
 .vditor-wysiwyg > .vditor-reset > h4:before, .vditor-wysiwyg > .vditor-reset > h5:before, .vditor-wysiwyg > .vditor-reset > h6:before { display: none !important; }
-.vditor-toolbar__item button[data-type^="md-"] svg,
-.vditor-toolbar__item button[data-type^="md-"] svg * { fill: none !important; stroke: currentColor !important; stroke-width: 1.3 !important; }
 
 /* Zoom (Ctrl+wheel): scales the document, not the toolbar or outline. */
 .vditor-ir > .vditor-reset, .vditor-wysiwyg > .vditor-reset, .vditor-sv, .vditor-preview > .vditor-reset { zoom: var(--md-zoom, 1); }
@@ -118,3 +147,32 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[dat
 .md-lightbox__stage { position: relative; flex: 1; overflow: hidden; cursor: grab; }
 .md-lightbox__stage:active { cursor: grabbing; }
 .md-lightbox__content { position: absolute; left: 0; top: 0; max-width: none !important; transform-origin: 0 0; background: #fff; user-select: none; -webkit-user-drag: none; }
+
+/* Right-click menu on images. */
+.md-context-menu {
+  position: fixed; z-index: 120; min-width: 180px; padding: 4px 0; border-radius: 5px;
+  font: 13px var(--vscode-font-family, sans-serif);
+  color: var(--vscode-menu-foreground, #333); background: var(--vscode-menu-background, #fff);
+  border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #ccc)); box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.25));
+}
+.md-context-menu button {
+  display: block; width: 100%; padding: 4px 24px 4px 26px; text-align: left; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; position: relative;
+}
+.md-context-menu button:hover, .md-context-menu button:focus { outline: none; color: var(--vscode-menu-selectionForeground, inherit); background: var(--vscode-menu-selectionBackground, #e8e8e8); }
+.md-context-menu__checked::before { content: '\2713'; position: absolute; left: 9px; }
+.md-context-menu__sep { height: 1px; margin: 4px 0; background: var(--vscode-menu-separatorBackground, #ddd); }
+
+/* Outline: highlight the section being read. */
+.vditor-outline span[data-target-id].md-outline--active {
+  background: var(--vscode-list-inactiveSelectionBackground, #e4e6f1) !important;
+  color: var(--vscode-list-inactiveSelectionForeground, inherit);
+  border-radius: 3px;
+}
+
+/* <img> written as inline HTML (inside a paragraph or table cell), drawn as the image. */
+.vditor-reset code.md-inline-img {
+  display: inline-block; max-width: 100%; height: auto; min-height: 16px; vertical-align: middle;
+  padding: 0 !important; margin: 0; border-radius: 0; font-size: 0 !important; color: transparent !important;
+  background: transparent center / contain no-repeat !important; cursor: zoom-in; user-select: none;
+}
+.vditor-reset code.md-inline-img--broken { min-width: 24px; outline: 1px dashed var(--vscode-errorForeground, #d1242f); }

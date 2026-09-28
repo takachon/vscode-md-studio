@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { MdStudioEditorProvider, MermaidStatus, VIEW_TYPE } from './editorProvider';
 import { ExportPanels } from './export';
 import { createLog } from './log';
+import { Updater } from './update';
 
 /** The Markdown file of the active editor tab (text or MD Studio). */
 function activeMarkdownUri(): vscode.Uri | undefined {
@@ -16,6 +17,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const status = new MermaidStatus();
   const provider = new MdStudioEditorProvider(context, log, status);
   const exports = new ExportPanels(context, log);
+  const updater = new Updater(context, log);
+  updater.start();
   context.subscriptions.push(
     log,
     status,
@@ -51,6 +54,8 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
 
     vscode.commands.registerCommand('mdStudio.showLog', () => log.show()),
+    vscode.commands.registerCommand('mdStudio.checkForUpdates', () => updater.check(true)),
+    updater,
   );
 }
 

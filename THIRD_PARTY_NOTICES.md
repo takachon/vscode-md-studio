@@ -8,3 +8,4 @@ under `media/vendor/` in the packaged extension.
 | [Vditor](https://github.com/Vanessa219/vditor) | 4.0.0 | MIT | `media/vendor/vditor/` (includes Lute, highlight.js — BSD-3-Clause, KaTeX — MIT) |
 | [Mermaid](https://github.com/mermaid-js/mermaid) | 12.0.0 | MIT | `media/vendor/mermaid/` |
 | [marked](https://github.com/markedjs/marked) | 18.0.14 | MIT | bundled into `dist/webview/exporter.js` |
+| [Codicons](https://github.com/microsoft/vscode-codicons) | 0.0.46-24 | CC-BY-4.0 (icons) / MIT (code) | toolbar icons, bundled into `dist/webview/editor.js` |

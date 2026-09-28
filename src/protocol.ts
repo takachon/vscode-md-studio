@@ -44,7 +44,8 @@ export type HostToEditor =
   | { type: 'init'; text: string; syncId: number }
   | { type: 'update'; text: string; syncId: number }
   | { type: 'flush'; requestId: number }
-  | { type: 'imageSaved'; requestId: number; path?: string; error?: string };
+  | { type: 'imageSaved'; requestId: number; path?: string; error?: string }
+  | { type: 'inputResult'; requestId: number; value?: string };
 
 export type EditorToHost =
   | { type: 'ready' }
@@ -55,6 +56,7 @@ export type EditorToHost =
   | { type: 'openLink'; href: string }
   | { type: 'command'; command: ToolbarCommand }
   | { type: 'zoom'; value: number }
+  | { type: 'askImageSize'; requestId: number; current: string }
   | { type: 'mermaidLoaded'; version: string }
   | { type: 'log'; level: 'info' | 'warn' | 'error'; message: string };
 

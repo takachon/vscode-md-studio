@@ -10,6 +10,10 @@ interface Options {
 }
 
 export function showLightbox(content: HTMLImageElement | SVGSVGElement, opts: Options = {}): void {
+  if (content instanceof HTMLImageElement && !(content.complete && content.naturalWidth > 0)) {
+    content.addEventListener('load', () => showLightbox(content, opts), { once: true });
+    return;
+  }
   closeLightbox();
   const el = content.cloneNode(true) as HTMLElement;
   el.removeAttribute('width');

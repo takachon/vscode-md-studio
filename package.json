@@ -2,7 +2,7 @@
   "name": "md-studio",
   "displayName": "MD Studio",
   "description": "WYSIWYG Markdown editor with a bundled, configurable Mermaid and single-file HTML export. Works fully offline.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "internal",
   "private": true,
   "license": "MIT",
@@ -23,7 +23,9 @@
     "vditor"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "contributes": {
     "customEditors": [
       {
@@ -72,6 +74,11 @@
       {
         "command": "mdStudio.showLog",
         "title": "Show Log",
+        "category": "MD Studio"
+      },
+      {
+        "command": "mdStudio.checkForUpdates",
+        "title": "Check for Updates",
         "category": "MD Studio"
       }
     ],
@@ -204,15 +211,15 @@
         },
         "mdStudio.editor.mode": {
           "type": "string",
-          "default": "ir",
+          "default": "wysiwyg",
           "enum": [
-            "ir",
             "wysiwyg",
+            "ir",
             "sv"
           ],
           "enumDescriptions": [
-            "Instant rendering: Markdown markers appear around the cursor (Typora-like).",
-            "Classic WYSIWYG: Markdown markers are hidden.",
+            "Word-like WYSIWYG: formatting is shown, Markdown symbols are hidden.",
+            "Instant rendering: Markdown symbols appear around the cursor (Typora-like).",
             "Split view: source on the left, preview on the right."
           ],
           "markdownDescription": "Editing mode of the WYSIWYG editor. Takes effect when the editor is reopened."
@@ -359,6 +366,25 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Browser used to print PDF (Edge, Chrome or Chromium). Empty = detect Microsoft Edge / Google Chrome automatically. On Remote-SSH / WSL this is a path on the remote machine."
+        },
+        "mdStudio.update.source": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Where new versions are published: a folder with `md-studio-<version>.vsix` files (e.g. `\\\\\\\\server\\\\share\\\\md-studio`), or an intranet URL that serves `latest.json`. Empty = never check. On Remote-SSH / WSL the path is resolved on the remote machine."
+        },
+        "mdStudio.update.mode": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "Ask before installing a new version.",
+            "Install new versions without asking (a reload is still needed)."
+          ],
+          "default": "prompt",
+          "markdownDescription": "What to do when a newer version is found in `#mdStudio.update.source#`."
         }
       }
     }

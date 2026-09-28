@@ -46,10 +46,10 @@ test('editing one paragraph changes only that line; diagrams, images, offline', 
   await page.waitForFunction(() => window.__posted.some((m) => m.type === 'mermaidLoaded'), null, { timeout: 20000 });
   assert.equal((await posted(page, 'mermaidLoaded'))[0].version, '12.0.0');
   await page.waitForFunction(() => document.querySelectorAll('.language-mermaid svg').length === 2, null, { timeout: 20000 });
-  const imgs = await page.evaluate(() => [...document.querySelectorAll('.vditor-ir img')].map((i) => i.naturalWidth));
+  const imgs = await page.evaluate(() => [...document.querySelectorAll('.vditor-reset img')].map((i) => i.naturalWidth));
   assert.ok(imgs.length >= 2 && imgs.every((w) => w > 0), `images: ${imgs}`);
 
-  const p = page.locator('.vditor-ir pre.vditor-reset p', { hasText: 'Hard break above' });
+  const p = page.locator('.vditor-reset p', { hasText: 'Hard break above' });
   await p.click({ position: { x: 5, y: 30 } });
   await page.keyboard.press('End');
   await page.keyboard.type(' EDITED');
@@ -101,7 +101,7 @@ test('mermaid errors are shown in place', async () => {
 
 test('Ctrl+wheel zooms the document and reports the level', async () => {
   const { page } = await openEditor('# Zoom\n\ntext\n');
-  const p = page.locator('.vditor-ir pre.vditor-reset p').first();
+  const p = page.locator('.vditor-reset p').first();
   const before = (await p.boundingBox()).height;
   await p.hover();
   await page.keyboard.down('Control');
@@ -120,7 +120,7 @@ test('clicking an image or the diagram button opens the viewer; markdown is unch
   const text = await readFile(join(fixtures, 'sample.md'), 'utf8');
   const { page, norm } = await openEditor(text);
   await page.waitForFunction(() => document.querySelectorAll('.md-diagram-expand').length === 2, null, { timeout: 20000 });
-  await page.locator('.vditor-ir img').first().click();
+  await page.locator('.vditor-reset img').first().click();
   await page.waitForSelector('.md-lightbox img.md-lightbox__content');
   assert.match(await page.locator('.md-lightbox__title').innerText(), /red/);
   await page.keyboard.press('Escape');
@@ -137,5 +137,80 @@ test('clicking an image or the diagram button opens the viewer; markdown is unch
   await page.evaluate(() => window.__send({ type: 'flush', requestId: 1 }));
   await page.waitForFunction(() => window.__posted.some((m) => m.type === 'flushed'));
   assert.equal((await posted(page, 'flushed'))[0].text, norm);
+  await page.close();
+});
+
+test('Word-like editing: no Markdown symbols, Ctrl+B bolds the selection and does not reach VS Code', async () => {
+  const { page } = await openEditor('Hello world\n');
+  await page.evaluate(() => {
+    window.__forwarded = [];
+    // VS Code's webview host listens on the window (bubble) and forwards keys to the workbench.
+    window.addEventListener('keydown', (e) => window.__forwarded.push(`${e.ctrlKey ? 'C+' : ''}${e.key}`));
+  });
+  const p = page.locator('.vditor-reset p').first();
+  await p.dblclick({ position: { x: 60, y: 8 } }); // selects "world"
+  await page.keyboard.press('Control+b');
+  await page.waitForFunction(() => document.querySelector('.vditor-reset b, .vditor-reset strong'), null, { timeout: 3000 });
+  assert.equal(await page.locator('.vditor-reset b, .vditor-reset strong').innerText(), 'world');
+  assert.doesNotMatch(await p.innerText(), /\*\*/, 'no ** shown');
+  assert.ok(!(await page.evaluate(() => window.__forwarded)).includes('C+b'), 'Ctrl+B was not forwarded');
+  await page.waitForFunction(() => window.__posted.some((m) => m.type === 'edit'), null, { timeout: 5000 });
+  assert.equal((await posted(page, 'edit')).at(-1).text.trim(), 'Hello **world**');
+  // Ctrl+S is still forwarded (VS Code saves).
+  await page.keyboard.press('Control+s');
+  assert.ok((await page.evaluate(() => window.__forwarded)).includes('C+s'));
+  await page.close();
+});
+
+test('right-click on an image changes its display size', async () => {
+  const md = 'Intro\n\n![red](images/red.png)\n\n![blue](images/blue%20dot.png "Blue")\n';
+  const { page } = await openEditor(md);
+  const edits = async () => (await posted(page, 'edit')).at(-1)?.text;
+  await page.locator('.vditor-reset img').nth(1).click({ button: 'right' });
+  await page.locator('.md-context-menu button', { hasText: 'Medium (50%)' }).click();
+  await page.waitForFunction(() => window.__posted.some((m) => m.type === 'edit'));
+  assert.match(await edits(), /!\[red\]\(images\/red\.png\)\n\n<img src="images\/blue%20dot\.png" alt="blue" title="Blue" width="50%">/);
+  await page.waitForFunction(() => [...document.querySelectorAll('.vditor-reset img')].some((i) => i.getAttribute('width') === '50%'));
+  const w = await page.evaluate(() => [...document.querySelectorAll('.vditor-reset img')].map((i) => i.getBoundingClientRect().width));
+  assert.ok(w[1] > 0);
+  // Back to the original size -> plain Markdown again.
+  const n = (await posted(page, 'edit')).length;
+  await page.locator('.vditor-reset img[width="50%"]').click({ button: 'right' });
+  await page.locator('.md-context-menu button', { hasText: 'Original Size' }).click();
+  await page.waitForFunction((n) => window.__posted.filter((m) => m.type === 'edit').length > n, n);
+  assert.match(await edits(), /!\[blue\]\(images\/blue%20dot\.png "Blue"\)/);
+  await page.close();
+});
+
+test('the outline highlights the section in view', async () => {
+  const md = Array.from({ length: 12 }, (_, i) => `## Part ${i + 1}\n\n${'text '.repeat(200)}\n`).join('\n');
+  const { page } = await openEditor(md);
+  const active = () => page.evaluate(() => document.querySelector('.md-outline--active')?.textContent?.trim());
+  await page.waitForFunction(() => document.querySelector('.md-outline--active'));
+  assert.equal(await active(), 'Part 1');
+  await page.evaluate(() => document.querySelectorAll('.vditor-reset h2')[7].scrollIntoView());
+  await page.waitForFunction(() => document.querySelector('.md-outline--active')?.textContent?.trim() === 'Part 8', null, { timeout: 3000 });
+  await page.close();
+});
+
+test('<img> inside a paragraph or table cell is drawn as an image and can be resized', async () => {
+  const md = 'Text <img src="images/red.png" width="40"> more\n\n| a | b |\n|---|---|\n| ![blue](images/blue%20dot.png) | x |\n';
+  const { page, norm } = await openEditor(md);
+  await page.waitForFunction(() => document.querySelector('code.md-inline-img')?.style.backgroundImage);
+  const box = await page.locator('code.md-inline-img').boundingBox();
+  assert.ok(Math.abs(box.width - 40) < 1 && Math.abs(box.height - 40) < 1, JSON.stringify(box));
+  // Drawing it does not change the Markdown.
+  await page.evaluate(() => window.__send({ type: 'flush', requestId: 9 }));
+  await page.waitForFunction(() => window.__posted.some((m) => m.type === 'flushed'));
+  assert.equal((await posted(page, 'flushed'))[0].text, norm);
+  // Resize the table image (a Markdown image inside a cell -> inline <img>, still drawn).
+  await page.locator('td img').click({ button: 'right' });
+  await page.locator('.md-context-menu button', { hasText: 'Large (75%)' }).click();
+  await page.waitForFunction(() => window.__posted.some((m) => m.type === 'edit'));
+  assert.match((await posted(page, 'edit')).at(-1).text, /\| <img src="images\/blue%20dot\.png" alt="blue" width="75%"> \| x \|/);
+  await page.waitForFunction(() => document.querySelectorAll('code.md-inline-img').length === 2);
+  // And it opens in the viewer.
+  await page.locator('code.md-inline-img').nth(1).click();
+  await page.waitForSelector('.md-lightbox img.md-lightbox__content');
   await page.close();
 });
