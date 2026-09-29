@@ -1,0 +1,40 @@
+name: Release
+
+# Push a tag like v0.2.3 (matching package.json "version") to build the
+# .vsix and attach it to a GitHub release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run package
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then TAG="v${VERSION}"; fi
+          if [ "$TAG" != "v${VERSION}" ]; then
+            echo "::error::Tag $TAG does not match package.json version $VERSION"; exit 1
+          fi
+          VSIX="md-studio-${VERSION}.vsix"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$VSIX" --clobber
+          else
+            gh release create "$TAG" "$VSIX" --title "$TAG" --generate-notes --target "$GITHUB_SHA"
+          fi

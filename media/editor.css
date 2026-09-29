@@ -132,7 +132,7 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[dat
 .vditor-reset img { cursor: zoom-in; }
 .language-mermaid[data-processed="true"] { position: relative; }
 .md-diagram-expand {
-  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0; cursor: zoom-in;
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0; cursor: default;
   font-size: 15px; line-height: 24px; border-radius: 4px; opacity: 0; transition: opacity .15s;
   color: #333; background: rgba(255,255,255,.9); border: 1px solid #bbb;
 }
