@@ -20,6 +20,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The webview tests drive a headless Chromium (editor, export, PDF).
+      - run: npx playwright-core install --with-deps chromium
       - run: npm test
       - run: npm run package
       - name: Create or update release
