@@ -379,7 +379,9 @@ class EditorSession {
       chosen = qp.selectedItems[0]?.id ?? qp.activeItems[0]?.id;
       qp.hide();
     });
-    await new Promise<void>((resolve) => qp.onDidHide(() => resolve()));
+    const hidden = new Promise<void>((resolve) => qp.onDidHide(() => resolve()));
+    qp.show();
+    await hidden;
     qp.dispose();
     if (!chosen || chosen === before) {
       this.post({ type: 'theme', theme: before });
