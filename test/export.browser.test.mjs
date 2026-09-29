@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { startServer } from './browser/server.mjs';
 import { launch, offlinePage, fixtures, readFixtureImages } from './browser/util.mjs';
 import { exportDocument, pageCss, tocHtml } from '../src/html.ts';
@@ -60,8 +61,8 @@ test('sample.md exports to a self-contained file', async () => {
   await writeFile(file, html);
 
   // Open the file:// page with every request blocked.
-  const { page, external } = await offlinePage(browser, `file://${file}`);
-  await page.goto(`file://${file}`);
+  const { page, external } = await offlinePage(browser, pathToFileURL(file).href);
+  await page.goto(pathToFileURL(file).href);
   const info = await page.evaluate(() => ({
     scripts: document.querySelectorAll('script').length,
     imgs: [...document.images].map((i) => ({ data: i.src.startsWith('data:'), ok: i.complete && i.naturalWidth > 0 })),

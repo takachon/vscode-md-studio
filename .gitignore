@@ -3,3 +3,4 @@ dist/
 media/vendor/
 *.vsix
 .vscode-test/
+.scratch/

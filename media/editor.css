@@ -1,4 +1,5 @@
-/* Layout: the editor fills the webview. */
+/* Layout: the editor fills the webview. Colors come from VS Code, or from themes.ts which overrides
+   the same --vscode-* variables on <body>. */
 html, body { height: 100%; margin: 0; padding: 0; }
 body { background: var(--vscode-editor-background); overflow: hidden; }
 #vditor { height: 100vh !important; border: 0; }
@@ -6,7 +7,7 @@ body { background: var(--vscode-editor-background); overflow: hidden; }
 /* Blend Vditor into the VS Code theme. */
 .vditor {
   --panel-background-color: var(--vscode-editorWidget-background);
-  --toolbar-background-color: var(--vscode-editor-background);
+  --toolbar-background-color: var(--md-chrome-background, var(--vscode-editor-background));
   --textarea-background-color: var(--vscode-editor-background);
   --border-color: var(--vscode-editorGroup-border, transparent);
   --second-color: var(--vscode-descriptionForeground);
@@ -37,8 +38,7 @@ body { background: var(--vscode-editor-background); overflow: hidden; }
 .vditor-ir pre.vditor-reset, .vditor-wysiwyg pre.vditor-reset, .vditor-sv { padding: 16px 32px !important; }
 
 /* Diagrams drawn with light themes stay readable on dark editors. */
-body.vscode-dark .language-mermaid[data-processed="true"],
-body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[data-processed="true"] {
+body.md-dark .language-mermaid[data-processed="true"] {
   background: #fff;
   border-radius: 6px;
   padding: 8px;
@@ -58,7 +58,7 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[dat
 .vditor-toolbar {
   display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1px;
   padding: 4px 8px !important; line-height: 1;
-  background: var(--vscode-editor-background) !important;
+  background: var(--md-chrome-background, var(--vscode-editor-background)) !important;
   border-bottom: 1px solid var(--vscode-editorGroup-border, var(--vscode-widget-border, rgba(128,128,128,.2))) !important;
 }
 .vditor-toolbar__item { float: none !important; padding: 0 !important; }
@@ -176,3 +176,16 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .language-mermaid[dat
   background: transparent center / contain no-repeat !important; cursor: zoom-in; user-select: none;
 }
 .vditor-reset code.md-inline-img--broken { min-width: 24px; outline: 1px dashed var(--vscode-errorForeground, #d1242f); }
+
+/* Explicit themes (themes.ts): the page color everywhere in the document, tables and quotes tinted to match. */
+body:not([data-md-theme="auto"]) .vditor-wysiwyg pre.vditor-reset,
+body:not([data-md-theme="auto"]) .vditor-ir pre.vditor-reset,
+body:not([data-md-theme="auto"]) .vditor-sv { background-color: var(--vscode-editor-background) !important; }
+body:not([data-md-theme="auto"]) .vditor-reset table tr { background-color: transparent !important; }
+body:not([data-md-theme="auto"]) .vditor-reset table thead tr,
+body:not([data-md-theme="auto"]) .vditor-reset table tbody tr:nth-child(2n) { background-color: var(--vscode-textBlockQuote-background) !important; }
+body:not([data-md-theme="auto"]) .vditor-reset table td,
+body:not([data-md-theme="auto"]) .vditor-reset table th { border-color: var(--vscode-widget-border) !important; }
+body:not([data-md-theme="auto"]) .vditor-reset blockquote { color: var(--vscode-descriptionForeground); border-left-color: var(--vscode-widget-border); }
+body:not([data-md-theme="auto"]) .vditor-reset hr { background-color: var(--vscode-widget-border); }
+body:not([data-md-theme="auto"]) .vditor-reset h1, body:not([data-md-theme="auto"]) .vditor-reset h2 { border-bottom-color: var(--vscode-widget-border); }

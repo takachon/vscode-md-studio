@@ -17,6 +17,7 @@ export interface EditorSettings {
   mode: 'ir' | 'wysiwyg' | 'sv';
   toolbar: boolean;
   outline: boolean;
+  theme: EditorTheme;
   font: EditorFont;
   /** Content zoom factor (Ctrl+wheel), 1 = 100 %. */
   zoom: number;
@@ -32,7 +33,10 @@ export interface EditorFont {
   codeSize: number;
 }
 
-export type ToolbarCommand = 'openText' | 'save' | 'export' | 'settings';
+/** `auto` follows VS Code's color theme. */
+export type EditorTheme = 'auto' | 'light' | 'warm' | 'sepia' | 'dark' | 'midnight';
+
+export type ToolbarCommand = 'openText' | 'save' | 'export' | 'settings' | 'theme';
 
 export interface ExportSettings {
   mermaid: MermaidSetup;
@@ -45,7 +49,8 @@ export type HostToEditor =
   | { type: 'update'; text: string; syncId: number }
   | { type: 'flush'; requestId: number }
   | { type: 'imageSaved'; requestId: number; path?: string; error?: string }
-  | { type: 'inputResult'; requestId: number; value?: string };
+  | { type: 'inputResult'; requestId: number; value?: string }
+  | { type: 'theme'; theme: EditorTheme };
 
 export type EditorToHost =
   | { type: 'ready' }

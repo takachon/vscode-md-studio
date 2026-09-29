@@ -1,4 +1,5 @@
-import type { EditorSettings, EditorToHost, HostToEditor } from '../protocol';
+import type { EditorSettings, EditorTheme, EditorToHost, HostToEditor } from '../protocol';
+import { applyTheme, isDarkTheme } from './themes';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion, type MermaidApi } from './mermaidLoader';
 import { closeLightbox, lightboxOpen, showLightbox } from './lightbox';
 import { toolbarItems } from './toolbar';
@@ -83,12 +84,20 @@ function mermaidReady(): Promise<MermaidApi> {
 }
 
 // --- Theme -------------------------------------------------------------------------------------
-const isDark = () =>
-  document.body.classList.contains('vscode-dark') ||
-  (document.body.classList.contains('vscode-high-contrast') &&
-    !document.body.classList.contains('vscode-high-contrast-light'));
 const themeArgs = (): ['dark' | 'classic', string, string] =>
-  isDark() ? ['dark', 'dark', 'github-dark'] : ['classic', 'light', 'github'];
+  isDarkTheme() ? ['dark', 'dark', 'github-dark'] : ['classic', 'light', 'github'];
+let themeDark: boolean | undefined;
+
+/** Applies `theme` (or re-evaluates the current one after VS Code's theme changed). */
+function setEditorTheme(theme: EditorTheme): void {
+  applyTheme(theme);
+  if (!vditor || themeDark === isDarkTheme()) return;
+  themeDark = isDarkTheme();
+  const [t, contentTheme, codeTheme] = themeArgs();
+  vditor.setTheme(t, contentTheme, codeTheme, `${settings.vditorCdn}/dist/css/content-theme`);
+}
+let editorTheme: EditorTheme = settings.theme ?? 'auto';
+applyTheme(editorTheme);
 
 // --- Editor ------------------------------------------------------------------------------------
 let vditor: VditorInstance | undefined;
@@ -124,6 +133,7 @@ function sendBaseline(): void {
 
 function create(text: string): void {
   const [theme, contentTheme, codeTheme] = themeArgs();
+  themeDark = isDarkTheme();
   const cdn = settings.vditorCdn;
   vditor = new Vditor('vditor', {
     value: text,
@@ -361,13 +371,11 @@ new MutationObserver(() => {
 
 window.addEventListener('message', (e: MessageEvent<HostToEditor>) => {
   if (e.data?.type === 'update') closeLightbox();
+  if (e.data?.type === 'theme') setEditorTheme((editorTheme = e.data.theme));
 });
 
-new MutationObserver(() => {
-  if (!vditor) return;
-  const [theme, contentTheme, codeTheme] = themeArgs();
-  vditor.setTheme(theme, contentTheme, codeTheme, `${settings.vditorCdn}/dist/css/content-theme`);
-}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+// VS Code's theme changed (body class): matters for `auto`.
+new MutationObserver(() => setEditorTheme(editorTheme)).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
 installMermaidFacade();
 installInlineImages(settings.linkBase);

@@ -17,6 +17,7 @@ import redo from '@vscode/codicons/src/icons/redo.svg';
 import save from '@vscode/codicons/src/icons/save.svg';
 import settingsGear from '@vscode/codicons/src/icons/settings-gear.svg';
 import strikethrough from '@vscode/codicons/src/icons/strikethrough.svg';
+import symbolColor from '@vscode/codicons/src/icons/symbol-color.svg';
 import table from '@vscode/codicons/src/icons/table.svg';
 import textSize from '@vscode/codicons/src/icons/text-size.svg';
 import type { ToolbarCommand } from '../protocol';
@@ -57,6 +58,7 @@ export function toolbarItems(run: (command: ToolbarCommand) => void) {
     builtin('redo', redo, 'Redo (Ctrl+Y)'),
     '|',
     builtin('edit-mode', editorLayout, 'Editing Mode'),
+    custom('md-theme', symbolColor, 'Editor Theme…', 'theme'),
     custom('md-settings', settingsGear, 'Settings', 'settings'),
   ];
 }

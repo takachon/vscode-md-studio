@@ -82,6 +82,7 @@ VS Code の自動更新は Marketplace 経由のものなので、共有フォ�
 | リンクを開く | <kbd>Ctrl</kbd>+クリック (http は既定のブラウザ、相対パスの `.md` などは VS Code で開く) |
 | 画像を貼る | クリップボードの画像を貼り付け、またはファイルをドロップ → `images/` (設定で変更可) に保存 |
 | 書き出す | ツールバーの ⬆ / エディタ右上のアイコン / コマンド **MD Studio: Export...** (HTML / PDF を選ぶ画面)。**Export to HTML** / **Export to PDF** は形式を選んだ状態で開く |
+| 色 (テーマ) を変える | ツールバー右の 🎨 → 一覧から選ぶ (上下キーで選ぶだけでその場で試せる)。VS Code に合わせる / ライト / 生成り (クリーム色) / セピア / ダーク / ミッドナイト (紺)。ツールバーとアウトラインは本文より一段濃い色になり、編集する場所が見分けやすい。書き出しの色には影響しない |
 | 編集モードを変える | ツールバー右の切替ボタン。WYSIWYG (既定) / 即時描画 (記号がカーソル付近に出る) / 左右分割 |
 | 使っている Mermaid の版 | 右下のステータスバーに `Mermaid 12.0.0`。詳細は **MD Studio: Show Log** |
 
@@ -101,6 +102,7 @@ VS Code の自動更新は Marketplace 経由のものなので、共有フォ�
 | `mdStudio.editor.mode` | `wysiwyg` | `wysiwyg` = Word のような編集 / `ir` = 即時描画 (記号がカーソル付近に出る) / `sv` = 左右分割 |
 | `mdStudio.editor.toolbar` | `true` | ツールバーを表示 |
 | `mdStudio.editor.outline` | `true` | 開いたときに左のアウトラインを表示 |
+| `mdStudio.editor.theme` | `auto` | エディタの色。`auto` = VS Code に合わせる / `light` / `warm` (生成り) / `sepia` / `dark` / `midnight`。ツールバーの 🎨 から選ぶとここに保存される |
 | `mdStudio.editor.allowRemoteImages` | `false` | `https:` の画像をエディタで表示する (オンにすると外部通信が発生) |
 | `mdStudio.image.folder` | `images` | 貼り付けた画像の保存先 (Markdown ファイルからの相対) |
 | `mdStudio.export.*` / `mdStudio.pdf.*` | | 書き出し画面の既定値 (画面の **Save as Default** で保存) |

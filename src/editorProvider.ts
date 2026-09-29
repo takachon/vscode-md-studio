@@ -2,12 +2,22 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { editorHtml } from './html';
 import { mergeEdit, minimalReplace } from './merge';
-import type { EditorSettings, EditorToHost, HostToEditor, ToolbarCommand } from './protocol';
+import type { EditorSettings, EditorTheme, EditorToHost, HostToEditor, ToolbarCommand } from './protocol';
 import { FONT_SETTINGS, SECTION, editorFont, resolveMermaid, resourceRoots, toSetup } from './settings';
 import type { Log } from './log';
 
 export const VIEW_TYPE = 'mdStudio.editor';
 const ZOOM_KEY = 'mdStudio.editor.zoom';
+const THEME_KEY = 'editor.theme';
+
+const THEMES: Array<{ id: EditorTheme; label: string; detail: string }> = [
+  { id: 'auto', label: 'Follow VS Code', detail: 'Same colors as the current VS Code color theme' },
+  { id: 'light', label: 'Light', detail: 'White page with a gray toolbar and outline' },
+  { id: 'warm', label: 'Warm Paper', detail: 'Soft cream page, easy on the eyes' },
+  { id: 'sepia', label: 'Sepia', detail: 'Deeper beige, like an e-book reader' },
+  { id: 'dark', label: 'Dark', detail: 'Dark gray page' },
+  { id: 'midnight', label: 'Midnight', detail: 'Dark blue page' },
+];
 
 export class MermaidStatus {
   private readonly item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -92,6 +102,7 @@ class EditorSession {
   private readonly flushWaiters = new Map<number, (m: { text?: string; syncId: number }) => void>();
   private readonly disposables: vscode.Disposable[] = [];
   private mermaidLabel = '';
+  private renderedKey = '';
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -109,8 +120,12 @@ class EditorSession {
         if (e.document === document) e.waitUntil(this.editsBeforeSave());
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration(`${SECTION}.${THEME_KEY}`, document.uri)) this.post({ type: 'theme', theme: this.theme() });
         const fontChanged = FONT_SETTINGS.some((k) => e.affectsConfiguration(k, document.uri));
-        if (e.affectsConfiguration(SECTION, document.uri) || fontChanged) void this.flushAndApply().then(() => this.render());
+        // A theme change is applied in place; anything else rebuilds the page.
+        if ((e.affectsConfiguration(SECTION, document.uri) || fontChanged) && this.renderKey() !== this.renderedKey) {
+          void this.flushAndApply().then(() => this.render());
+        }
       }),
       panel.onDidChangeViewState(() => {
         if (panel.active) status.focus(this);
@@ -129,7 +144,20 @@ class EditorSession {
     void this.panel.webview.postMessage(msg);
   }
 
+  private theme(): EditorTheme {
+    return vscode.workspace.getConfiguration(SECTION, this.document.uri).get<EditorTheme>(THEME_KEY, 'auto');
+  }
+
+  /** The settings the page is built from, except the theme. */
+  private renderKey(): string {
+    const cfg = { ...vscode.workspace.getConfiguration(SECTION, this.document.uri) } as Record<string, unknown>;
+    const editor = { ...(cfg.editor as Record<string, unknown> | undefined) };
+    delete editor.theme;
+    return JSON.stringify({ ...cfg, editor, font: editorFont(this.document.uri) });
+  }
+
   private async render(): Promise<void> {
+    this.renderedKey = this.renderKey();
     const webview = this.panel.webview;
     const ext = this.context.extensionUri;
     const mermaid = await resolveMermaid(ext, this.document.uri);
@@ -149,6 +177,7 @@ class EditorSession {
       mode: cfg.get('editor.mode', 'wysiwyg'),
       toolbar: cfg.get('editor.toolbar', true),
       outline: cfg.get('editor.outline', true),
+      theme: this.theme(),
       font: editorFont(this.document.uri),
       zoom: this.context.globalState.get<number>(ZOOM_KEY, 1),
       mermaid: toSetup(webview, mermaid),
@@ -329,7 +358,35 @@ class EditorSession {
       case 'settings':
         await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${this.context.extension.id}`);
         break;
+      case 'theme':
+        await this.pickTheme();
+        break;
     }
+  }
+
+  /** Quick pick of the editor themes, previewed while moving through the list. */
+  private async pickTheme(): Promise<void> {
+    const before = this.theme();
+    const qp = vscode.window.createQuickPick<vscode.QuickPickItem & { id: EditorTheme }>();
+    qp.title = 'MD Studio: Editor Theme';
+    qp.placeholder = 'Select a color theme for the editor (Up/Down to preview)';
+    qp.items = THEMES.map((t) => ({ ...t, description: t.id === before ? 'current' : undefined }));
+    qp.activeItems = qp.items.filter((i) => i.id === before);
+    let chosen: EditorTheme | undefined;
+    qp.onDidChangeActive(([i]) => i && this.post({ type: 'theme', theme: i.id }));
+    qp.onDidAccept(() => {
+      chosen = qp.selectedItems[0]?.id ?? qp.activeItems[0]?.id;
+      qp.hide();
+    });
+    await new Promise<void>((resolve) => qp.onDidHide(() => resolve()));
+    qp.dispose();
+    if (!chosen || chosen === before) {
+      this.post({ type: 'theme', theme: before });
+      return;
+    }
+    const cfg = vscode.workspace.getConfiguration(SECTION, this.document.uri);
+    const where = cfg.inspect(THEME_KEY)?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+    await cfg.update(THEME_KEY, chosen, where);
   }
 
   private async openLink(href: string): Promise<void> {

@@ -214,3 +214,33 @@ test('<img> inside a paragraph or table cell is drawn as an image and can be res
   await page.waitForSelector('.md-lightbox img.md-lightbox__content');
   await page.close();
 });
+
+test('editor themes recolor the page and switch without touching the markdown', async () => {
+  const text = await readFile(join(fixtures, 'sample.md'), 'utf8');
+  const { page, errors } = await openEditor(text, { theme: 'warm' });
+  const colors = () => page.evaluate(() => ({
+    theme: document.body.dataset.mdTheme,
+    dark: document.body.classList.contains('md-dark'),
+    page: getComputedStyle(document.querySelector('.vditor-wysiwyg pre.vditor-reset')).backgroundColor,
+    toolbar: getComputedStyle(document.querySelector('.vditor-toolbar')).backgroundColor,
+    vditorDark: document.querySelector('.vditor').classList.contains('vditor--dark'),
+  }));
+  let c = await colors();
+  assert.deepEqual(c, { theme: 'warm', dark: false, page: 'rgb(253, 249, 236)', toolbar: 'rgb(242, 234, 211)', vditorDark: false });
+
+  await page.evaluate(() => window.__send({ type: 'theme', theme: 'dark' }));
+  c = await colors();
+  assert.deepEqual(c, { theme: 'dark', dark: true, page: 'rgb(30, 30, 30)', toolbar: 'rgb(42, 42, 43)', vditorDark: true });
+
+  // `auto` goes back to VS Code's variables (none in this test page: light fallbacks).
+  await page.evaluate(() => window.__send({ type: 'theme', theme: 'auto' }));
+  c = await colors();
+  assert.equal(c.theme, 'auto');
+  assert.equal(c.vditorDark, false);
+  assert.equal(await page.evaluate(() => document.body.style.getPropertyValue('--vscode-editor-background')), '');
+
+  await page.click('[data-type="md-theme"]');
+  assert.deepEqual((await posted(page, 'command')).map((m) => m.command), ['theme']);
+  assert.deepEqual(await posted(page, 'edit'), [], 'switching themes is not an edit');
+  assert.deepEqual(errors, []);
+});

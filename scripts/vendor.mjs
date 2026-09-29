@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const root = join(dirname(new URL(import.meta.url).pathname), '..');
+const root = join(import.meta.dirname, '..');
 const out = join(root, 'media', 'vendor');
 const pkgDir = (name) => dirname(require.resolve(`${name}/package.json`));
 

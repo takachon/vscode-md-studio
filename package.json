@@ -2,7 +2,7 @@
   "name": "md-studio",
   "displayName": "MD Studio",
   "description": "WYSIWYG Markdown editor with a bundled, configurable Mermaid and single-file HTML export. Works fully offline.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "internal",
   "private": true,
   "license": "MIT",
@@ -233,6 +233,27 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Show the outline (table of contents) on the left when the editor opens. It can be toggled from the toolbar."
+        },
+        "mdStudio.editor.theme": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "light",
+            "warm",
+            "sepia",
+            "dark",
+            "midnight"
+          ],
+          "enumDescriptions": [
+            "Same colors as the current VS Code color theme.",
+            "White page with a gray toolbar and outline.",
+            "Soft cream page, easy on the eyes.",
+            "Deeper beige, like an e-book reader.",
+            "Dark gray page.",
+            "Dark blue page."
+          ],
+          "markdownDescription": "Color theme of the MD Studio editor. Can also be changed from the toolbar (Editor Theme button). Does not affect exports (see `#mdStudio.export.theme#`)."
         },
         "mdStudio.editor.allowRemoteImages": {
           "type": "boolean",

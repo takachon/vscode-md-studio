@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- Editor themes: Follow VS Code, Light, Warm Paper, Sepia, Dark and Midnight (`mdStudio.editor.theme`). The toolbar's Editor Theme button opens a list that previews each theme as you move through it. The toolbar and outline get a slightly different color from the page, so the editing area stands out.
+
 ## 0.2.2
 
 - PDF export works where Edge refuses remote debugging (company policy): printing uses the browser's `--print-to-pdf` first and falls back to the DevTools protocol. Paper, margins, page numbers and header are CSS `@page` rules, so both give the same pages. A failure now explains what to check (`edge://policy`).
