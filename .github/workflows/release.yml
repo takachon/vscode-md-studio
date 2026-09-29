@@ -22,6 +22,8 @@ jobs:
       - run: npm ci
       # The webview tests drive a headless Chromium (editor, export, PDF).
       - run: npx playwright-core install --with-deps chromium
+      # media/vendor is not in git; `build` copies it from node_modules before the tests.
+      - run: npm run build
       - run: npm test
       - run: npm run package
       - name: Create or update release

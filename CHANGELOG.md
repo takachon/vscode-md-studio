@@ -4,6 +4,7 @@
 
 - Math and more diagram kinds, drawn the same way in the editor and in HTML / PDF exports (static SVG, no scripts): KaTeX math (`$…$`, `$$…$$`, ` ```math `), Graphviz, flowchart.js, ECharts (options parsed as data, never evaluated), mind maps from lists, markmap, ABC notation and SMILES. All libraries are bundled.
 - PlantUML through a server of your choice (`mdStudio.plantuml.server`); exports fetch and embed the SVG.
+- Saving after editing one table row (or one line of any block the editor re-spaces) changes only that row. Other rows keep their own padding and spacing (the editor used to rewrite the whole table, e.g. adding a space between Japanese text and `code`).
 - Images: an enlarge button appears in the top-right corner on hover (like diagrams); clicking an image no longer opens the viewer. The viewer keeps the aspect ratio when zoomed beyond 100 % (VS Code's default webview style capped the height).
 
 ## 0.2.3
