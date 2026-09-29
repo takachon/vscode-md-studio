@@ -10,6 +10,9 @@
 // Lines equal in orig and norm are anchors. Between anchors lies a "gap" whose formatting Lute
 // changed. A region (anchor or gap) no edit touches is copied from orig verbatim; a touched region
 // is taken from next. If next === norm the result is exactly orig.
+//
+// A touched gap (e.g. a table whose padding Lute changed, with one edited row) is split once more,
+// pairing lines that differ only in whitespace, so only the edited lines come from next.
 
 export type Pair = [number, number];
 
@@ -162,14 +165,7 @@ export function mergeEdit(orig: string, norm: string, next: string): string {
   const anchors = matchLines(O, N0);
 
   // Regions: [oStart, oEnd) in O  <->  [nStart, nEnd) in N0, alternating gap / anchor.
-  const regions: Array<{ os: number; oe: number; ns: number; ne: number }> = [];
-  let po = 0, pn = 0;
-  for (const [i, j] of anchors) {
-    if (i > po || j > pn) regions.push({ os: po, oe: i, ns: pn, ne: j });
-    regions.push({ os: i, oe: i + 1, ns: j, ne: j + 1 });
-    po = i + 1; pn = j + 1;
-  }
-  if (O.length > po || N0.length > pn) regions.push({ os: po, oe: O.length, ns: pn, ne: N0.length });
+  const regions = toRegions(anchors, 0, O.length, 0, N0.length);
 
   const deleted = new Uint8Array(N0.length);
   for (const h of H) for (let j = h.s; j < h.e; j++) deleted[j] = 1;
@@ -185,20 +181,46 @@ export function mergeEdit(orig: string, norm: string, next: string): string {
   };
 
   const res: string[] = [];
-  for (const r of regions) {
+  const emit = (r: Region, refine: boolean): void => {
     const dirty = H.some((h) => (h.s < r.ne && h.e > r.ns) || (h.s === h.e && h.s > r.ns && h.s < r.ne));
     if (!dirty) {
       emitAt(r.ns, res);
       for (let i = r.os; i < r.oe; i++) res.push(O[i]);
+    } else if (refine && (r.oe - r.os > 1 || r.ne - r.ns > 1)) {
+      const oKeys = O.slice(r.os, r.oe).map(looseKey);
+      const nKeys = N0.slice(r.ns, r.ne).map(looseKey);
+      const pairs = matchLines(oKeys, nKeys).map(([i, j]): Pair => [r.os + i, r.ns + j]);
+      for (const sub of toRegions(pairs, r.os, r.oe, r.ns, r.ne)) emit(sub, false);
     } else {
       for (let j = r.ns; j < r.ne; j++) {
         emitAt(j, res);
         if (!deleted[j]) res.push(N0[j]);
       }
     }
-  }
+  };
+  for (const r of regions) emit(r, true);
   emitAt(N0.length, res);
   return res.join(eol);
+}
+
+interface Region { os: number; oe: number; ns: number; ne: number }
+
+/** Splits [os, oe) x [ns, ne) into alternating gap / single-line anchor regions. */
+function toRegions(anchors: readonly Pair[], os: number, oe: number, ns: number, ne: number): Region[] {
+  const regions: Region[] = [];
+  let po = os, pn = ns;
+  for (const [i, j] of anchors) {
+    if (i > po || j > pn) regions.push({ os: po, oe: i, ns: pn, ne: j });
+    regions.push({ os: i, oe: i + 1, ns: j, ne: j + 1 });
+    po = i + 1; pn = j + 1;
+  }
+  if (oe > po || ne > pn) regions.push({ os: po, oe, ns: pn, ne });
+  return regions;
+}
+
+/** Line identity ignoring whitespace: Lute pads table cells and spaces CJK next to code. */
+function looseKey(line: string): string {
+  return line.replace(/\s+/g, '');
 }
 
 /** Smallest single replacement that turns `from` into `to` (offsets into `from`). */

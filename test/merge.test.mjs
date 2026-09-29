@@ -15,12 +15,35 @@ test('edit in one paragraph keeps reformatted blocks elsewhere', () => {
   assert.equal(mergeEdit(orig, norm, next), orig.replace('Hello world.', 'Hello there.'));
 });
 
-test('edit inside a reformatted table takes the new table only', () => {
-  const orig = ['Intro', '', '|a|b|', '|-|-|', '|1|2|', '', 'Outro  ', ''].join('\n');
-  const norm = ['Intro', '', '| a | b |', '| - | - |', '| 1 | 2 |', '', 'Outro', ''].join('\n');
+test('edit inside a reformatted table takes the edited row only', () => {
+  const orig = ['Intro', '', '|a|b|', '|-|-|', '|1|2|', '|4|5|', '', 'Outro  ', ''].join('\n');
+  const norm = ['Intro', '', '| a | b |', '| - | - |', '| 1 | 2 |', '| 4 | 5 |', '', 'Outro', ''].join('\n');
   const next = norm.replace('| 1 | 2 |', '| 1 | 3 |');
   const out = mergeEdit(orig, norm, next);
-  assert.equal(out, ['Intro', '', '| a | b |', '| - | - |', '| 1 | 3 |', '', 'Outro  ', ''].join('\n'));
+  assert.equal(out, ['Intro', '', '|a|b|', '|-|-|', '| 1 | 3 |', '|4|5|', '', 'Outro  ', ''].join('\n'));
+});
+
+test('rows Lute respaced (CJK next to code, padding) stay as written', () => {
+  const orig = [
+    '| 種類 | 取り方 | 間隔 |',
+    '|------|--------|------|',
+    '| 信号 | 変化したものだけ | 100ms |',
+    '| ジョブ | MainCmd.txt の`GUICJSTA`（CJ） | 100ms |',
+    '| MC ログ | MC に`MCFILES\\LOG`を書き出させる | 20 分 |',
+    '',
+  ].join('\n');
+  const norm = [
+    '| 種類    | 取り方                               | 間隔  |',
+    '| ------- | ------------------------------------ | ----- |',
+    '| 信号    | 変化したものだけ                     | 100ms |',
+    '| ジョブ  | MainCmd.txt の `GUICJSTA`（CJ）      | 100ms |',
+    '| MC ログ | MC に `MCFILES\\LOG` を書き出させる | 20 分 |',
+    '',
+  ].join('\n');
+  const next = norm.replace('変化したものだけ', '変化したものだけ記録');
+  const out = mergeEdit(orig, norm, next).split('\n');
+  const o = orig.split('\n');
+  assert.deepEqual(out.filter((l, k) => l !== o[k]), [next.split('\n')[2]]);
 });
 
 test('insertions at start, middle, end and deletions', () => {
