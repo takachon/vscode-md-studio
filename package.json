@@ -1,0 +1,474 @@
+{
+  "name": "md-studio",
+  "displayName": "MD Studio",
+  "description": "WYSIWYG Markdown editor with a bundled, configurable Mermaid and single-file HTML export. Works fully offline.",
+  "version": "0.3.0",
+  "publisher": "internal",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/takachon/vscode-md-studio.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "wysiwyg",
+    "mermaid",
+    "vditor"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "mdStudio.editor",
+        "displayName": "MD Studio (WYSIWYG)",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mdStudio.openEditor",
+        "title": "Open in WYSIWYG Editor",
+        "category": "MD Studio",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "mdStudio.openTextEditor",
+        "title": "Reopen as Text Editor",
+        "category": "MD Studio",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "mdStudio.export",
+        "title": "Export...",
+        "category": "MD Studio",
+        "icon": "$(export)"
+      },
+      {
+        "command": "mdStudio.exportHtml",
+        "title": "Export to HTML",
+        "category": "MD Studio"
+      },
+      {
+        "command": "mdStudio.exportPdf",
+        "title": "Export to PDF",
+        "category": "MD Studio"
+      },
+      {
+        "command": "mdStudio.showLog",
+        "title": "Show Log",
+        "category": "MD Studio"
+      },
+      {
+        "command": "mdStudio.checkForUpdates",
+        "title": "Check for Updates",
+        "category": "MD Studio"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mdStudio.openEditor",
+          "when": "resourceLangId == markdown && activeEditor == workbench.editors.files.textFileEditor",
+          "group": "navigation"
+        },
+        {
+          "command": "mdStudio.openTextEditor",
+          "when": "activeCustomEditorId == mdStudio.editor",
+          "group": "navigation"
+        },
+        {
+          "command": "mdStudio.export",
+          "when": "activeCustomEditorId == mdStudio.editor",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "mdStudio.openEditor",
+          "when": "resourceLangId == markdown",
+          "group": "navigation@20"
+        },
+        {
+          "command": "mdStudio.export",
+          "when": "resourceLangId == markdown",
+          "group": "navigation@21"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mdStudio.openEditor",
+          "when": "resourceLangId == markdown"
+        },
+        {
+          "command": "mdStudio.openTextEditor",
+          "when": "activeCustomEditorId == mdStudio.editor"
+        },
+        {
+          "command": "mdStudio.export",
+          "when": "resourceLangId == markdown || activeCustomEditorId == mdStudio.editor"
+        },
+        {
+          "command": "mdStudio.exportHtml",
+          "when": "resourceLangId == markdown || activeCustomEditorId == mdStudio.editor"
+        },
+        {
+          "command": "mdStudio.exportPdf",
+          "when": "resourceLangId == markdown || activeCustomEditorId == mdStudio.editor"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MD Studio",
+      "properties": {
+        "mdStudio.mermaid.source": {
+          "type": "string",
+          "enum": [
+            "bundled",
+            "file"
+          ],
+          "enumDescriptions": [
+            "Use the Mermaid build bundled with the extension.",
+            "Use the mermaid.min.js file given in mdStudio.mermaid.file."
+          ],
+          "default": "bundled",
+          "markdownDescription": "Which Mermaid build to use for the editor and HTML export."
+        },
+        "mdStudio.mermaid.file": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to a `mermaid.min.js` (IIFE build that defines `window.mermaid`) used when `#mdStudio.mermaid.source#` is `file`. On Remote-SSH / WSL this is a path on the remote machine. `~` and `${workspaceFolder}` are expanded."
+        },
+        "mdStudio.mermaid.theme": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "default",
+            "neutral",
+            "dark",
+            "forest",
+            "base",
+            "redux",
+            "redux-color",
+            "redux-dark",
+            "redux-dark-color"
+          ],
+          "markdownDescription": "Default Mermaid theme. Empty = Mermaid's own default (Mermaid 12 uses `redux-color` for flowcharts). A `config:` block at the top of a diagram always wins."
+        },
+        "mdStudio.mermaid.look": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "classic",
+            "neo",
+            "handDrawn"
+          ],
+          "markdownDescription": "Default Mermaid look. Empty = Mermaid's own default (Mermaid 12: `neo`)."
+        },
+        "mdStudio.mermaid.layout": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "dagre",
+            "elk"
+          ],
+          "markdownDescription": "Default Mermaid layout engine. Empty = Mermaid's own default (Mermaid 12: `elk`)."
+        },
+        "mdStudio.mermaid.securityLevel": {
+          "type": "string",
+          "default": "loose",
+          "enum": [
+            "loose",
+            "strict",
+            "antiscript"
+          ],
+          "markdownDescription": "Mermaid `securityLevel`. `loose` allows HTML labels. Use `strict` for untrusted documents."
+        },
+        "mdStudio.mermaid.config": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Extra options passed to `mermaid.initialize()` (e.g. `{\"flowchart\": {\"curve\": \"basis\"}}`). Theme / look / layout above take precedence over the same keys here."
+        },
+        "mdStudio.editor.mode": {
+          "type": "string",
+          "default": "wysiwyg",
+          "enum": [
+            "wysiwyg",
+            "ir",
+            "sv"
+          ],
+          "enumDescriptions": [
+            "Word-like WYSIWYG: formatting is shown, Markdown symbols are hidden.",
+            "Instant rendering: Markdown symbols appear around the cursor (Typora-like).",
+            "Split view: source on the left, preview on the right."
+          ],
+          "markdownDescription": "Editing mode of the WYSIWYG editor. Takes effect when the editor is reopened."
+        },
+        "mdStudio.editor.toolbar": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the editor toolbar."
+        },
+        "mdStudio.editor.outline": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the outline (table of contents) on the left when the editor opens. It can be toggled from the toolbar."
+        },
+        "mdStudio.editor.theme": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "light",
+            "warm",
+            "sepia",
+            "dark",
+            "midnight"
+          ],
+          "enumDescriptions": [
+            "Same colors as the current VS Code color theme.",
+            "White page with a gray toolbar and outline.",
+            "Soft cream page, easy on the eyes.",
+            "Deeper beige, like an e-book reader.",
+            "Dark gray page.",
+            "Dark blue page."
+          ],
+          "markdownDescription": "Color theme of the MD Studio editor. Can also be changed from the toolbar (Editor Theme button). Does not affect exports (see `#mdStudio.export.theme#`)."
+        },
+        "mdStudio.editor.allowRemoteImages": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Allow the editor to load `https:` images. Off by default so the editor never goes to the network."
+        },
+        "mdStudio.plantuml.server": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "PlantUML server used to draw ` ```plantuml ` blocks, e.g. `http://plantuml.example.local/plantuml` (the part before `/svg/...`). Empty = PlantUML blocks are not drawn. The diagram text is sent to this server; exports embed the returned SVG. Do not use a public server for confidential documents."
+        },
+        "mdStudio.image.folder": {
+          "type": "string",
+          "default": "images",
+          "markdownDescription": "Folder (relative to the Markdown file) where pasted images are saved."
+        },
+        "mdStudio.export.format": {
+          "type": "string",
+          "enum": [
+            "html",
+            "pdf"
+          ],
+          "default": "html",
+          "markdownDescription": "Default format in the Export panel."
+        },
+        "mdStudio.export.images": {
+          "type": "string",
+          "enum": [
+            "embed",
+            "link",
+            "copy"
+          ],
+          "enumDescriptions": [
+            "Embed images in the HTML as data URIs (one self-contained file).",
+            "Keep links to the original image files (paths rewritten relative to the HTML).",
+            "Copy images to a `<name>_files` folder next to the HTML."
+          ],
+          "default": "embed",
+          "markdownDescription": "How images are written to exported HTML. PDF always embeds them."
+        },
+        "mdStudio.export.highlight": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Syntax highlighting for code blocks in exports."
+        },
+        "mdStudio.export.toc": {
+          "type": "string",
+          "enum": [
+            "none",
+            "top",
+            "sidebar"
+          ],
+          "default": "none",
+          "markdownDescription": "Table of contents in exported HTML."
+        },
+        "mdStudio.export.tocDepth": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 6,
+          "default": 3,
+          "markdownDescription": "Heading levels listed in the table of contents (HTML and PDF)."
+        },
+        "mdStudio.export.tocTitle": {
+          "type": "string",
+          "default": "Contents",
+          "markdownDescription": "Title of the table of contents."
+        },
+        "mdStudio.export.theme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark",
+            "auto"
+          ],
+          "default": "light",
+          "markdownDescription": "Color theme of exported HTML. `auto` follows the viewer's OS setting."
+        },
+        "mdStudio.export.maxWidth": {
+          "type": "number",
+          "default": 1180,
+          "markdownDescription": "Maximum width (px) of the body in exported HTML."
+        },
+        "mdStudio.export.openAfter": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Open the exported file with its default application."
+        },
+        "mdStudio.pdf.toc": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Start the PDF with a table of contents page (with page numbers and links)."
+        },
+        "mdStudio.pdf.bookmarks": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Add PDF bookmarks (outline) for the headings."
+        },
+        "mdStudio.pdf.paper": {
+          "type": "string",
+          "enum": [
+            "A4",
+            "A3",
+            "B5",
+            "Letter",
+            "Legal"
+          ],
+          "default": "A4",
+          "markdownDescription": "Paper size of exported PDF."
+        },
+        "mdStudio.pdf.landscape": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Landscape orientation."
+        },
+        "mdStudio.pdf.margin": {
+          "type": "string",
+          "enum": [
+            "narrow",
+            "normal",
+            "wide"
+          ],
+          "default": "normal",
+          "markdownDescription": "Page margins."
+        },
+        "mdStudio.pdf.pageNumbers": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Page numbers (`n / total`) in the footer."
+        },
+        "mdStudio.pdf.headerTitle": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Document title in the page header."
+        },
+        "mdStudio.pdf.browserPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Browser used to print PDF (Edge, Chrome or Chromium). Empty = detect Microsoft Edge / Google Chrome automatically. On Remote-SSH / WSL this is a path on the remote machine."
+        },
+        "mdStudio.update.source": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Where new versions are published: a folder with `md-studio-<version>.vsix` files (e.g. `\\\\\\\\server\\\\share\\\\md-studio`), or an intranet URL that serves `latest.json`. Empty = never check. On Remote-SSH / WSL the path is resolved on the remote machine."
+        },
+        "mdStudio.update.mode": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "Ask before installing a new version.",
+            "Install new versions without asking (a reload is still needed)."
+          ],
+          "default": "prompt",
+          "markdownDescription": "What to do when a newer version is found in `#mdStudio.update.source#`."
+        },
+        "mdStudio.export.font": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "yugothic",
+            "meiryo",
+            "bizud-gothic",
+            "yumincho",
+            "bizud-mincho",
+            "custom"
+          ],
+          "enumDescriptions": [
+            "Same as the editor: VS Code's `markdown.preview.fontFamily`.",
+            "Yu Gothic (游ゴシック)",
+            "Meiryo (メイリオ)",
+            "BIZ UDPGothic (BIZ UDPゴシック)",
+            "Yu Mincho (游明朝)",
+            "BIZ UDPMincho (BIZ UDP明朝)",
+            "The font names in `mdStudio.export.fontCustom`."
+          ],
+          "default": "editor",
+          "markdownDescription": "Text font of exported HTML and PDF. Code always uses `editor.fontFamily`."
+        },
+        "mdStudio.export.fontCustom": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "CSS font-family list used when `#mdStudio.export.font#` is `custom`, e.g. `\"Noto Sans JP\", Meiryo`."
+        },
+        "mdStudio.pdf.fontSize": {
+          "type": "number",
+          "default": 10.5,
+          "minimum": 6,
+          "maximum": 24,
+          "markdownDescription": "Body text size of exported PDF, in points."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vendor": "node scripts/vendor.mjs",
+    "build": "node scripts/vendor.mjs && node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "node scripts/build.mjs && node --test test/*.test.mjs",
+    "package": "npm run build && vsce package --no-dependencies --allow-missing-repository",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/vscode": "1.85.0",
+    "@vscode/codicons": "0.0.46-24",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "marked": "18.0.14",
+    "mermaid": "12.0.0",
+    "playwright-core": "1.56.1",
+    "typescript": "5.9.3",
+    "vditor": "4.0.0"
+  }
+}

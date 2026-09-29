@@ -1,0 +1,204 @@
+/* Layout: the editor fills the webview. Colors come from VS Code, or from themes.ts which overrides
+   the same --vscode-* variables on <body>. */
+html, body { height: 100%; margin: 0; padding: 0; }
+body { background: var(--vscode-editor-background); overflow: hidden; }
+#vditor { height: 100vh !important; border: 0; }
+
+/* Blend Vditor into the VS Code theme. */
+.vditor {
+  --panel-background-color: var(--vscode-editorWidget-background);
+  --toolbar-background-color: var(--md-chrome-background, var(--vscode-editor-background));
+  --textarea-background-color: var(--vscode-editor-background);
+  --border-color: var(--vscode-editorGroup-border, transparent);
+  --second-color: var(--vscode-descriptionForeground);
+  --textarea-text-color: var(--vscode-editor-foreground);
+  --toolbar-icon-color: var(--vscode-icon-foreground);
+  --toolbar-icon-hover-color: var(--vscode-textLink-foreground);
+  border: 0 !important;
+}
+.vditor-toolbar { border-bottom: 1px solid var(--vscode-editorGroup-border, transparent) !important; }
+/* Fonts follow VS Code: markdown.preview.* for text, editor.* for code, the workbench font for chrome.
+   (Vditor's own stack puts Chinese fonts before sans-serif, which renders Japanese with Chinese glyphs.) */
+.vditor, .vditor-toolbar, .vditor-outline, .vditor-hint, .vditor-panel, .vditor-tip {
+  font-family: var(--vscode-font-family, sans-serif) !important;
+}
+.vditor-outline { font-size: var(--vscode-font-size, 13px); }
+.vditor-reset, .vditor-sv {
+  font-family: var(--md-font-family, var(--vscode-font-family, sans-serif)) !important;
+  font-size: var(--md-font-size, 14px) !important;
+  line-height: var(--md-line-height, 1.6) !important;
+  color: var(--vscode-editor-foreground);
+}
+.vditor-reset code, .vditor-reset pre > code, .vditor-reset kbd, .vditor-reset samp,
+.vditor-ir__marker--pre code, .vditor-ir__marker--info {
+  font-family: var(--md-code-font-family, var(--vscode-editor-font-family, monospace)) !important;
+}
+.vditor-reset pre code, .vditor-reset pre.vditor-ir__marker--pre code { font-size: var(--md-code-font-size, 13px) !important; }
+.vditor-reset a { color: var(--vscode-textLink-foreground); }
+.vditor-ir pre.vditor-reset, .vditor-wysiwyg pre.vditor-reset, .vditor-sv { padding: 16px 32px !important; }
+
+/* Diagrams drawn with light themes stay readable on dark editors. */
+body.md-dark .language-mermaid[data-processed="true"],
+body.md-dark .md-diagram:not(.language-echarts):not(.language-mindmap):not(.language-smiles) .md-diagram-out {
+  background: #fff;
+  border-radius: 6px;
+  padding: 8px;
+}
+.language-mermaid svg { max-width: 100%; height: auto; }
+/* Other diagrams (editorDiagrams.ts): centered pictures, source stays in Markdown. */
+.vditor-reset .md-diagram { position: relative; text-align: center; overflow-x: auto; white-space: normal; }
+.md-diagram-out { display: inline-block; max-width: 100%; }
+.md-diagram-out > svg, .md-diagram-out > img { max-width: 100%; height: auto; vertical-align: top; }
+.md-diagram-error {
+  text-align: left; color: var(--vscode-errorForeground, #d1242f); border: 1px solid currentColor;
+  border-radius: 6px; padding: 6px 10px; background: var(--vscode-editor-background);
+}
+.md-diagram-error pre { white-space: pre-wrap; margin: 4px 0 0; font-size: 12px; background: none !important; }
+.md-studio-mermaid-error {
+  text-align: left;
+  color: var(--vscode-errorForeground, #d1242f);
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--vscode-editor-background);
+}
+.md-studio-mermaid-error pre { white-space: pre-wrap; margin: 4px 0 0; font-size: 12px; }
+
+/* Toolbar like Office Viewer / VS Code: centered, thin 16px icons, rounded hover, subtle dividers. */
+.vditor-toolbar {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1px;
+  padding: 4px 8px !important; line-height: 1;
+  background: var(--md-chrome-background, var(--vscode-editor-background)) !important;
+  border-bottom: 1px solid var(--vscode-editorGroup-border, var(--vscode-widget-border, rgba(128,128,128,.2))) !important;
+}
+.vditor-toolbar__item { float: none !important; padding: 0 !important; }
+.vditor-toolbar__item > button, .vditor-toolbar__item > .vditor-tooltipped {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0 !important; border-radius: 5px;
+  color: var(--vscode-icon-foreground, #424242) !important; background: transparent;
+}
+.vditor-toolbar__item svg { width: 16px !important; height: 16px !important; fill: currentColor !important; stroke: none !important; }
+.vditor-toolbar__item > button:hover, .vditor-toolbar__item > .vditor-tooltipped:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.18)) !important;
+  color: var(--vscode-icon-foreground, #424242) !important;
+}
+.vditor-toolbar .vditor-menu--current {
+  background: var(--vscode-inputOption-activeBackground, rgba(0,122,204,.18)) !important;
+  color: var(--vscode-inputOption-activeForeground, #0066bf) !important;
+  outline: 1px solid var(--vscode-inputOption-activeBorder, transparent); outline-offset: -1px;
+}
+.vditor-toolbar .vditor-menu--disabled { opacity: .4; }
+.vditor-toolbar__divider {
+  float: none !important; width: 1px !important; height: 16px !important; margin: 0 6px !important; padding: 0 !important;
+  border: 0 !important; background: var(--vscode-widget-border, rgba(128,128,128,.35));
+}
+/* Tooltips look like VS Code hovers. */
+.vditor-tooltipped::after {
+  font: 12px var(--vscode-font-family, sans-serif) !important; padding: 4px 8px !important; border-radius: 3px !important;
+  color: var(--vscode-editorHoverWidget-foreground, #333) !important; background: var(--vscode-editorHoverWidget-background, #f3f3f3) !important;
+  border: 1px solid var(--vscode-editorHoverWidget-border, #c8c8c8); box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.16));
+}
+.vditor-tooltipped::before { display: none !important; }
+/* Drop-down panels of the toolbar (headings, edit mode). */
+.vditor-panel {
+  font: 13px var(--vscode-font-family, sans-serif) !important;
+  color: var(--vscode-menu-foreground, inherit) !important; background: var(--vscode-menu-background, #fff) !important;
+  border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #ccc)) !important; border-radius: 5px !important;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.2)) !important;
+}
+.vditor-outline {
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background)) !important;
+  border-right: 1px solid var(--vscode-editorGroup-border, transparent) !important;
+  width: 260px;
+}
+.vditor-outline__title { color: var(--vscode-sideBarSectionHeader-foreground, inherit); }
+.vditor-outline li > span { color: var(--vscode-foreground); }
+.vditor-outline li > span:hover { background: var(--vscode-list-hoverBackground) !important; }
+/* Full-width body like Office Viewer; wide tables scroll instead of being cut off. */
+.vditor-reset table { display: table; width: 100%; word-break: normal; overflow-wrap: break-word; }
+.vditor-reset table td, .vditor-reset table th { word-break: normal; white-space: normal !important; }
+/* No "H1/H2" labels in the gutter (Office Viewer hides them too). */
+.vditor-ir .vditor-reset > h1:before, .vditor-ir .vditor-reset > h2:before, .vditor-ir .vditor-reset > h3:before,
+.vditor-ir .vditor-reset > h4:before, .vditor-ir .vditor-reset > h5:before, .vditor-ir .vditor-reset > h6:before,
+.vditor-wysiwyg > .vditor-reset > h1:before, .vditor-wysiwyg > .vditor-reset > h2:before, .vditor-wysiwyg > .vditor-reset > h3:before,
+.vditor-wysiwyg > .vditor-reset > h4:before, .vditor-wysiwyg > .vditor-reset > h5:before, .vditor-wysiwyg > .vditor-reset > h6:before { display: none !important; }
+
+/* Zoom (Ctrl+wheel): scales the document, not the toolbar or outline. */
+.vditor-ir > .vditor-reset, .vditor-wysiwyg > .vditor-reset, .vditor-sv, .vditor-preview > .vditor-reset { zoom: var(--md-zoom, 1); }
+.md-zoom-badge {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50; display: flex; gap: 8px; align-items: center;
+  padding: 6px 10px; border-radius: 6px; font: 12px var(--vscode-font-family, sans-serif);
+  color: var(--vscode-editorWidget-foreground, #333); background: var(--vscode-editorWidget-background, #f3f3f3);
+  border: 1px solid var(--vscode-editorWidget-border, #ccc); box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.md-zoom-badge--visible, .md-zoom-badge:hover { opacity: 1; pointer-events: auto; }
+.md-zoom-badge button, .md-lightbox__bar button {
+  font: inherit; cursor: pointer; padding: 2px 8px; border-radius: 3px;
+  color: var(--vscode-button-secondaryForeground, #333); background: var(--vscode-button-secondaryBackground, #e5e5e5); border: 0;
+}
+
+/* Images and diagrams can be enlarged. */
+.language-mermaid[data-processed="true"] { position: relative; }
+.md-diagram-expand {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0; cursor: default;
+  font-size: 15px; line-height: 24px; border-radius: 4px; opacity: 0; transition: opacity .15s;
+  color: #333; background: rgba(255,255,255,.9); border: 1px solid #bbb;
+}
+.language-mermaid[data-processed="true"]:hover > .md-diagram-expand, .md-diagram:hover > .md-diagram-expand { opacity: 1; }
+/* The one button shared by all images (editor.ts), placed over the hovered image. */
+.md-image-expand { position: fixed; z-index: 40; pointer-events: none; }
+.md-image-expand--visible { opacity: 1; pointer-events: auto; }
+.md-lightbox {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
+  background: rgba(20, 20, 20, .88); outline: none; font: 13px var(--vscode-font-family, sans-serif);
+}
+.md-lightbox__bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; color: #eee; }
+.md-lightbox__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-lightbox__zoom { min-width: 48px; text-align: right; opacity: .8; }
+.md-lightbox__stage { position: relative; flex: 1; overflow: hidden; cursor: grab; }
+.md-lightbox__stage:active { cursor: grabbing; }
+/* max-height too: VS Code's webview default style caps img at 100% (the picture was squashed past 100 %). */
+.md-lightbox__content { position: absolute; left: 0; top: 0; max-width: none !important; max-height: none !important; transform-origin: 0 0; background: #fff; user-select: none; -webkit-user-drag: none; }
+
+/* Right-click menu on images. */
+.md-context-menu {
+  position: fixed; z-index: 120; min-width: 180px; padding: 4px 0; border-radius: 5px;
+  font: 13px var(--vscode-font-family, sans-serif);
+  color: var(--vscode-menu-foreground, #333); background: var(--vscode-menu-background, #fff);
+  border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #ccc)); box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.25));
+}
+.md-context-menu button {
+  display: block; width: 100%; padding: 4px 24px 4px 26px; text-align: left; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; position: relative;
+}
+.md-context-menu button:hover, .md-context-menu button:focus { outline: none; color: var(--vscode-menu-selectionForeground, inherit); background: var(--vscode-menu-selectionBackground, #e8e8e8); }
+.md-context-menu__checked::before { content: '\2713'; position: absolute; left: 9px; }
+.md-context-menu__sep { height: 1px; margin: 4px 0; background: var(--vscode-menu-separatorBackground, #ddd); }
+
+/* Outline: highlight the section being read. */
+.vditor-outline span[data-target-id].md-outline--active {
+  background: var(--vscode-list-inactiveSelectionBackground, #e4e6f1) !important;
+  color: var(--vscode-list-inactiveSelectionForeground, inherit);
+  border-radius: 3px;
+}
+
+/* <img> written as inline HTML (inside a paragraph or table cell), drawn as the image. */
+.vditor-reset code.md-inline-img {
+  display: inline-block; max-width: 100%; height: auto; min-height: 16px; vertical-align: middle;
+  padding: 0 !important; margin: 0; border-radius: 0; font-size: 0 !important; color: transparent !important;
+  background: transparent center / contain no-repeat !important; user-select: none;
+}
+.vditor-reset code.md-inline-img--broken { min-width: 24px; outline: 1px dashed var(--vscode-errorForeground, #d1242f); }
+
+/* Explicit themes (themes.ts): the page color everywhere in the document, tables and quotes tinted to match. */
+body:not([data-md-theme="auto"]) .vditor-wysiwyg pre.vditor-reset,
+body:not([data-md-theme="auto"]) .vditor-ir pre.vditor-reset,
+body:not([data-md-theme="auto"]) .vditor-sv { background-color: var(--vscode-editor-background) !important; }
+body:not([data-md-theme="auto"]) .vditor-reset table tr { background-color: transparent !important; }
+body:not([data-md-theme="auto"]) .vditor-reset table thead tr,
+body:not([data-md-theme="auto"]) .vditor-reset table tbody tr:nth-child(2n) { background-color: var(--vscode-textBlockQuote-background) !important; }
+body:not([data-md-theme="auto"]) .vditor-reset table td,
+body:not([data-md-theme="auto"]) .vditor-reset table th { border-color: var(--vscode-widget-border) !important; }
+body:not([data-md-theme="auto"]) .vditor-reset blockquote { color: var(--vscode-descriptionForeground); border-left-color: var(--vscode-widget-border); }
+body:not([data-md-theme="auto"]) .vditor-reset hr { background-color: var(--vscode-widget-border); }
+body:not([data-md-theme="auto"]) .vditor-reset h1, body:not([data-md-theme="auto"]) .vditor-reset h2 { border-bottom-color: var(--vscode-widget-border); }
