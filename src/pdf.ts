@@ -157,8 +157,8 @@ export function printPdfCli(browser: string, htmlFile: string, o: { outline: boo
 }
 
 function lastLines(log: string): string {
-  const lines = log.split(/\r?\n/).filter((l) => l.trim() && !/dbus|Fontconfig|GPU|gpu_|viz_|sandbox/i.test(l));
-  const telling = lines.filter((l) => /polic|disallow|admin|headless|denied|not allowed/i.test(l));
+  const lines = log.split(/\r?\n/).filter((l) => l.trim() && !/dbus|Fontconfig|GPU|gpu_|viz_|crashpad/i.test(l));
+  const telling = lines.filter((l) => /polic|disallow|admin|headless|denied|not allowed|sandbox/i.test(l));
   return (telling.length ? telling : lines).slice(-3).join(' ').trim();
 }
 

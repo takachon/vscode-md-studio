@@ -22,6 +22,9 @@ jobs:
       - run: npm ci
       # The webview tests drive a headless Chromium (editor, export, PDF).
       - run: npx playwright-core install --with-deps chromium
+      # Ubuntu 24.04 runners forbid the user namespaces Chromium's sandbox needs (AppArmor);
+      # without this the PDF test's browser exits with "No usable sandbox!".
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       # media/vendor is not in git; `build` copies it from node_modules before the tests.
       - run: npm run build
       - run: npm test

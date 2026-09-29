@@ -7,6 +7,7 @@ import { readFile, writeFile, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { chromium } from 'playwright-core';
 import { startServer } from './browser/server.mjs';
 import { launch, offlinePage, fixtures, readFixtureImages } from './browser/util.mjs';
 import { exportDocument, pageCss, tocHtml } from '../src/html.ts';
@@ -126,7 +127,7 @@ test('PDF: contents page with page numbers, bookmarks; --print-to-pdf and DevToo
     });
   const dir = await mkdtemp(join(tmpdir(), 'md-studio-pdf-'));
   const file = join(dir, 'doc.html');
-  const exe = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+  const exe = process.env.CHROMIUM_PATH ?? chromium.executablePath();
 
   // --print-to-pdf (the default method)
   await writeFile(file, build());
