@@ -18,6 +18,8 @@ export interface EditorSettings {
   toolbar: boolean;
   outline: boolean;
   theme: EditorTheme;
+  /** PlantUML server URL (mdStudio.plantuml.server), '' when not set. */
+  plantumlServer: string;
   font: EditorFont;
   /** Content zoom factor (Ctrl+wheel), 1 = 100 %. */
   zoom: number;
@@ -40,6 +42,9 @@ export type ToolbarCommand = 'openText' | 'save' | 'export' | 'settings' | 'them
 
 export interface ExportSettings {
   mermaid: MermaidSetup;
+  /** Webview URL of Vditor's dist/js (diagram libraries, KaTeX). */
+  libBase: string;
+  plantumlServer: string;
   /** Webview URL of highlight.min.js. */
   hljsUrl: string;
 }
@@ -122,6 +127,6 @@ export type ExporterToHost =
   | { type: 'saveDefaults'; options: ExportOptions }
   | { type: 'openResult'; action: 'open' | 'reveal' }
   | { type: 'needImages'; srcs: string[] }
-  | { type: 'rendered'; html: string; headings: Heading[]; mermaidVersion: string; diagrams: number; problems: string[] }
+  | { type: 'rendered'; html: string; headings: Heading[]; mermaidVersion: string; diagrams: number; problems: string[]; math: boolean }
   | { type: 'failed'; message: string }
   | { type: 'log'; level: 'info' | 'warn' | 'error'; message: string };

@@ -2,7 +2,7 @@
   "name": "md-studio",
   "displayName": "MD Studio",
   "description": "WYSIWYG Markdown editor with a bundled, configurable Mermaid and single-file HTML export. Works fully offline.",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "publisher": "internal",
   "private": true,
   "license": "MIT",
@@ -259,6 +259,11 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Allow the editor to load `https:` images. Off by default so the editor never goes to the network."
+        },
+        "mdStudio.plantuml.server": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "PlantUML server used to draw ` ```plantuml ` blocks, e.g. `http://plantuml.example.local/plantuml` (the part before `/svg/...`). Empty = PlantUML blocks are not drawn. The diagram text is sent to this server; exports embed the returned SVG. Do not use a public server for confidential documents."
         },
         "mdStudio.image.folder": {
           "type": "string",

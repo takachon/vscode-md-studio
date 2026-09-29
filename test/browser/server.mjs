@@ -8,11 +8,12 @@ import { editorHtml, exportPanelHtml } from '../../src/html.ts';
 const root = join(import.meta.dirname, '..', '..');
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.json': 'application/json', '.md': 'text/markdown' };
 
-export async function startServer({ mermaidUrl, mermaidConfig = {}, mode = 'wysiwyg', allowRemoteImages = false, theme = 'auto' } = {}) {
+export async function startServer({ mermaidUrl, mermaidConfig = {}, mode = 'wysiwyg', allowRemoteImages = false, theme = 'auto', plantumlServer = '' } = {}) {
   let origin = '';
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, origin);
-    const inject = (html) => html.replace('<script type="application/json"', `<script src="${origin}/test/browser/fake-vscode.js"></script>\n<script type="application/json"`);
+    // Like VS Code, whose webviews get a default style that caps images at the webview size.
+    const inject = (html) => html.replace('</head>', '<style>img, video { max-width: 100%; max-height: 100%; }</style>\n</head>').replace('<script type="application/json"', `<script src="${origin}/test/browser/fake-vscode.js"></script>\n<script type="application/json"`);
     if (url.pathname === '/editor.html') {
       const html = editorHtml({
         cspSource: origin,
@@ -26,6 +27,7 @@ export async function startServer({ mermaidUrl, mermaidConfig = {}, mode = 'wysi
           toolbar: true,
           outline: true,
           theme,
+          plantumlServer,
           zoom: 1,
           font: { family: "'Segoe UI', sans-serif", size: 14, lineHeight: 1.6, codeFamily: 'monospace', codeSize: 13 },
           mermaid: { url: origin + (mermaidUrl ?? '/media/vendor/mermaid/mermaid.min.js'), label: 'test', config: { startOnLoad: false, securityLevel: 'loose', ...mermaidConfig } },
@@ -42,6 +44,8 @@ export async function startServer({ mermaidUrl, mermaidConfig = {}, mode = 'wysi
         settings: {
           mermaid: { url: origin + (mermaidUrl ?? '/media/vendor/mermaid/mermaid.min.js'), label: 'test', config: { startOnLoad: false, securityLevel: 'loose', ...mermaidConfig } },
           hljsUrl: `${origin}/media/vendor/vditor/dist/js/highlight.js/highlight.min.js`,
+          libBase: `${origin}/media/vendor/vditor/dist/js`,
+          plantumlServer,
         },
       });
       res.writeHead(200, { 'content-type': 'text/html' }).end(inject(html));

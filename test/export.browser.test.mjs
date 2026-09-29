@@ -22,10 +22,10 @@ after(async () => {
   srv?.close();
 });
 
-async function runExport(markdown, mermaidConfig) {
-  if (mermaidConfig) {
+async function runExport(markdown, mermaidConfig, serverOpts, extraImage = () => undefined) {
+  if (mermaidConfig || serverOpts) {
     srv.close();
-    srv = await startServer({ mermaidConfig });
+    srv = await startServer({ mermaidConfig, ...serverOpts });
   }
   const { page, external, errors } = await offlinePage(browser, srv.origin);
   await page.goto(`${srv.origin}/exporter.html`);
@@ -34,7 +34,7 @@ async function runExport(markdown, mermaidConfig) {
   await page.waitForFunction(() => window.__posted.some((m) => ['needImages', 'rendered', 'failed'].includes(m.type)), null, { timeout: 30000 });
   const need = await page.evaluate(() => window.__posted.find((m) => m.type === 'needImages'));
   if (need) {
-    const images = await readFixtureImages(need.srcs);
+    const images = { ...(await readFixtureImages(need.srcs)), ...Object.fromEntries(need.srcs.filter((s) => extraImage(s)).map((s) => [s, extraImage(s)])) };
     await page.evaluate((images) => window.__send({ type: 'images', images }), images);
   }
   await page.waitForFunction(() => window.__posted.some((m) => ['rendered', 'failed'].includes(m.type)), null, { timeout: 30000 });
@@ -157,3 +157,33 @@ test('PDF: contents page with page numbers, bookmarks; --print-to-pdf and DevToo
 test('PDF: a browser that cannot start gives a clear error', async () => {
   await assert.rejects(printPdfCli('/nonexistent/msedge', '/tmp/x.html', { outline: false }), /cannot start \/nonexistent\/msedge/);
 });
+
+test('math and the other diagram kinds export as static markup (no scripts, no network)', async () => {
+  const markdown = await readFile(join(fixtures, 'diagrams.md'), 'utf8');
+  const server = 'https://plantuml.example.invalid/plantuml';
+  const svg = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>').toString('base64');
+  const asked = new Set();
+  const { result, errors } = await runExport(markdown, undefined, { plantumlServer: server }, (src) => {
+    if (!src.startsWith(`${server}/svg/~1`)) return undefined;
+    asked.add(src);
+    return svg;
+  });
+  assert.equal(asked.size, 1, 'the host is asked for the PlantUML SVG');
+  assert.deepEqual(result.problems, []);
+  assert.equal(result.math, true);
+  assert.equal(result.diagrams, 8);
+  const doc = new DOMParserLike(result.html);
+  for (const kind of ['graphviz', 'flowchart', 'echarts', 'mindmap', 'markmap', 'abc', 'smiles']) {
+    assert.ok(doc.has(`class="diagram diagram-${kind}"><svg`), `${kind} is an inline SVG`);
+  }
+  assert.ok(result.html.includes(`<img alt="PlantUML diagram" src="${svg}">`), 'PlantUML fetched by the host and embedded');
+  assert.ok(result.html.includes('class="katex-display"'), 'block math');
+  assert.ok(/class="math-inline"><span class="katex">/.test(result.html), 'inline math');
+  assert.doesNotMatch(result.html, /<script|language-(graphviz|echarts|plantuml)/);
+  assert.deepEqual(errors, []);
+});
+
+class DOMParserLike {
+  constructor(html) { this.html = html; }
+  has(s) { return this.html.includes(s); }
+}

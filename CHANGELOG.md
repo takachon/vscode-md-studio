@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- Math and more diagram kinds, drawn the same way in the editor and in HTML / PDF exports (static SVG, no scripts): KaTeX math (`$…$`, `$$…$$`, ` ```math `), Graphviz, flowchart.js, ECharts (options parsed as data, never evaluated), mind maps from lists, markmap, ABC notation and SMILES. All libraries are bundled.
+- PlantUML through a server of your choice (`mdStudio.plantuml.server`); exports fetch and embed the SVG.
+- Images: an enlarge button appears in the top-right corner on hover (like diagrams); clicking an image no longer opens the viewer. The viewer keeps the aspect ratio when zoomed beyond 100 % (VS Code's default webview style capped the height).
+
 ## 0.2.3
 
 - Editor themes: Follow VS Code, Light, Warm Paper, Sepia, Dark and Midnight (`mdStudio.editor.theme`). The toolbar's Editor Theme button opens a list that previews each theme as you move through it. The toolbar and outline get a slightly different color from the page, so the editing area stands out.

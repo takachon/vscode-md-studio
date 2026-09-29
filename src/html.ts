@@ -17,10 +17,21 @@ function attr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
-export function csp(cspSource: string, n: string, allowRemoteImages: boolean): string {
+/** `https://host:port` of an http(s) URL, or '' (for the CSP; nothing else is let through). */
+export function originOf(url: string): string {
+  try {
+    const u = new URL(url);
+    return /^https?:$/.test(u.protocol) ? u.origin : '';
+  } catch {
+    return '';
+  }
+}
+
+export function csp(cspSource: string, n: string, allowRemoteImages: boolean, imgOrigins: string[] = []): string {
+  const extra = imgOrigins.filter(Boolean).map((o) => ` ${o}`).join('');
   return [
     `default-src 'none'`,
-    `img-src ${cspSource} data: blob:${allowRemoteImages ? ' https:' : ''}`,
+    `img-src ${cspSource} data: blob:${allowRemoteImages ? ' https:' : ''}${extra}`,
     `script-src ${cspSource} 'nonce-${n}'`,
     `style-src ${cspSource} 'unsafe-inline'`,
     `font-src ${cspSource} data:`,
@@ -41,7 +52,7 @@ export function editorHtml(o: {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="${attr(csp(o.cspSource, n, o.allowRemoteImages))}">
+<meta http-equiv="Content-Security-Policy" content="${attr(csp(o.cspSource, n, o.allowRemoteImages, [originOf(o.settings.plantumlServer)]))}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${attr(cdn)}/dist/index.css">
 <link rel="stylesheet" href="${attr(o.cssUrl)}">
@@ -125,6 +136,8 @@ export interface DocumentParts {
   lang?: string;
   /** @page rules for PDF (paper, margins, page numbers, header). */
   pageCss?: string;
+  /** Extra CSS (KaTeX with its fonts as data URIs). */
+  extraCss?: string;
 }
 
 /** Fallbacks so that Japanese never ends up in a Chinese or missing font, on any OS. */
@@ -172,6 +185,7 @@ ${o.toc && o.toc.position !== 'sidebar' ? o.toc.html + '\n' : ''}${o.body}
 <style>
 ${codeCss}
 ${exportCss(o)}
+${o.extraCss ?? ''}
 ${o.pageCss ?? ''}
 </style>
 </head>
@@ -193,7 +207,7 @@ function exportCss(o: DocumentParts): string {
         ? `:root{${DARK};color-scheme:dark}`
         : `:root{${LIGHT}}@media (prefers-color-scheme: dark){:root{${DARK};color-scheme:dark}}`;
   // Diagrams and images are drawn for light backgrounds; give them a light card in dark mode.
-  const darkCards = `.mermaid,img{background:#fff}.mermaid{padding:8px;border-radius:6px}`;
+  const darkCards = `.mermaid,.diagram,img{background:#fff}.mermaid,.diagram{padding:8px;border-radius:6px}.diagram-echarts,.diagram-mindmap{background:none;padding:0}`;
   const dark = o.theme === 'dark' ? darkCards : o.theme === 'auto' ? `@media (prefers-color-scheme: dark){${darkCards}}` : '';
   return `${vars}
 *,*::before,*::after{box-sizing:border-box}
@@ -205,7 +219,7 @@ h1,h2,h3,h4,h5,h6{margin:24px 0 16px;font-weight:600;line-height:1.25;scroll-mar
 h1{font-size:2em;padding-bottom:.3em;border-bottom:1px solid var(--border)}
 h2{font-size:1.5em;padding-bottom:.3em;border-bottom:1px solid var(--border)}
 h3{font-size:1.25em}h4{font-size:1em}h5{font-size:.875em}h6{font-size:.85em;color:var(--muted)}
-p,blockquote,ul,ol,dl,table,pre,details,.mermaid{margin:0 0 16px}
+p,blockquote,ul,ol,dl,table,pre,details,.mermaid,.diagram,.math-block{margin:0 0 16px}
 a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 ul,ol{padding-left:2em}li+li{margin-top:.25em}
 li>input[type=checkbox]{margin:0 .35em .2em -1.4em;vertical-align:middle}
@@ -222,9 +236,10 @@ table{display:block;width:max-content;max-width:100%;overflow:auto;border-spacin
 th,td{padding:6px 13px;border:1px solid var(--border)}
 th{font-weight:600;background:var(--subtle)}
 tr:nth-child(2n) td{background:var(--subtle)}
-.mermaid{text-align:center;overflow-x:auto}
-.mermaid svg{max-width:100%;height:auto}
-.mermaid-error{text-align:left;border:1px solid var(--error);border-radius:6px;padding:8px 12px;color:var(--error)}
+.mermaid,.diagram,.math-block{text-align:center;overflow-x:auto}
+.mermaid svg,.diagram svg,.diagram img{max-width:100%;height:auto}
+.diagram-smiles svg{max-width:min(100%,360px)}
+.mermaid-error,.diagram-error{text-align:left;border:1px solid var(--error);border-radius:6px;padding:8px 12px;color:var(--error)}
 ${dark}
 .toc{font-size:.95em}
 .toc-title{font-weight:600;font-size:1.25em;margin:0 0 8px}
@@ -257,7 +272,7 @@ body.print .toc{font-size:10.5pt}
 .toc-sidebar{display:none}
 .layout{display:block}
 h1,h2,h3,h4,h5,h6{break-after:avoid}
-pre,table,.mermaid,img,blockquote{break-inside:avoid}
+pre,table,.mermaid,.diagram,.math-block,img,blockquote{break-inside:avoid}
 tr,li{break-inside:avoid}
 }`;
 }

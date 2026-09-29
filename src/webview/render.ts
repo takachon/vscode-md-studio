@@ -3,6 +3,11 @@
 import { Marked } from 'marked';
 import type { ExportSettings, Heading } from '../protocol';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion } from './mermaidLoader';
+import { DIAGRAM_KINDS, isDiagramKind, renderDiagram } from './diagrams';
+
+interface Katex {
+  render(tex: string, el: HTMLElement, o: { displayMode: boolean; throwOnError: boolean }): void;
+}
 
 interface Hljs {
   getLanguage(name: string): unknown;
@@ -11,6 +16,7 @@ interface Hljs {
 declare global {
   interface Window {
     hljs?: Hljs;
+    katex?: Katex;
   }
 }
 
@@ -20,7 +26,37 @@ export interface RenderResult {
   mermaidVersion: string;
   diagrams: number;
   problems: string[];
+  /** KaTeX markup is in the HTML: the host adds KaTeX's CSS. */
+  math: boolean;
 }
+
+/** `$inline$`, `$$ block $$` (as Vditor / GitLab / GitHub write them). */
+const mathExtension = {
+  extensions: [
+    {
+      name: 'mathBlock',
+      level: 'block' as const,
+      start: (src: string) => src.match(/^ {0,3}\$\$/m)?.index,
+      tokenizer(src: string) {
+        const m = /^ {0,3}\$\$[ \t]*\n?([\s\S]+?)\n?[ \t]*\$\$[ \t]*(?:\n+|$)/.exec(src);
+        if (m) return { type: 'mathBlock', raw: m[0], text: m[1].trim() };
+        return undefined;
+      },
+      renderer: (t: { text?: string }) => `<div class="math-block" data-tex="${escapeHtml(t.text ?? '')}"></div>\n`,
+    },
+    {
+      name: 'mathInline',
+      level: 'inline' as const,
+      start: (src: string) => src.match(/(?<!\\)\$/)?.index,
+      tokenizer(src: string) {
+        const m = /^\$(?!\s)((?:\\.|[^\\$\n])+?)(?<!\s)\$(?!\d)/.exec(src);
+        if (m) return { type: 'mathInline', raw: m[0], text: m[1] };
+        return undefined;
+      },
+      renderer: (t: { text?: string }) => `<span class="math-inline" data-tex="${escapeHtml(t.text ?? '')}"></span>`,
+    },
+  ],
+};
 
 /** GitHub / GitLab style anchor ids ("3.7 Foo Bar" -> "37-foo-bar", duplicates get -1, -2 ...). */
 export function addHeadingIds(root: ParentNode): void {
@@ -64,9 +100,65 @@ export async function renderMarkdown(
 ): Promise<RenderResult> {
   const problems: string[] = [];
   const marked = new Marked({ gfm: true, breaks: false });
+  marked.use(mathExtension);
   main.innerHTML = await marked.parse(stripFrontMatter(markdown));
 
   addHeadingIds(main);
+
+  // Math (```math blocks too) -> KaTeX markup.
+  for (const code of main.querySelectorAll<HTMLElement>('pre > code.language-math')) {
+    const div = document.createElement('div');
+    div.className = 'math-block';
+    div.dataset.tex = code.textContent ?? '';
+    code.parentElement!.replaceWith(div);
+  }
+  const maths = [...main.querySelectorAll<HTMLElement>('.math-block, .math-inline')];
+  if (maths.length > 0) {
+    try {
+      await loadScript(`${settings.libBase}/katex/katex.min.js`);
+      await loadScript(`${settings.libBase}/katex/mhchem.min.js`);
+      for (const el of maths) {
+        const tex = el.dataset.tex ?? '';
+        try {
+          window.katex!.render(tex, el, { displayMode: el.classList.contains('math-block'), throwOnError: true });
+        } catch (e) {
+          problems.push(`Math: ${String((e as Error).message ?? e).split('\n')[0]}`);
+          el.classList.add('math-error');
+          el.textContent = el.classList.contains('math-block') ? `$$${tex}$$` : `$${tex}$`;
+        }
+        delete el.dataset.tex;
+      }
+    } catch (e) {
+      problems.push(String((e as Error).message ?? e));
+    }
+  }
+
+  // Graphviz, flowchart, ECharts, mind map, markmap, ABC, SMILES, PlantUML -> static SVG / image.
+  const plantuml = new Map<HTMLImageElement, string>();
+  let others = 0;
+  const diagramCodes = [...main.querySelectorAll<HTMLElement>(DIAGRAM_KINDS.map((k) => `pre > code.language-${k}`).join(', '))];
+  for (const code of diagramCodes) {
+    const kind = /language-(\S+)/.exec(code.className)![1];
+    if (!isDiagramKind(kind)) continue;
+    others++;
+    const div = document.createElement('div');
+    div.className = `diagram diagram-${kind}`;
+    code.parentElement!.replaceWith(div);
+    try {
+      const r = await renderDiagram(kind, code.textContent ?? '', { libBase: settings.libBase, plantumlServer: settings.plantumlServer, dark: false, width: 800 });
+      if (r.remote) {
+        // PlantUML: the host fetches the SVG (always embedded, like the other diagrams).
+        const img = Object.assign(document.createElement('img'), { alt: 'PlantUML diagram' });
+        div.appendChild(img);
+        plantuml.set(img, r.remote);
+      } else div.innerHTML = r.html;
+    } catch (e) {
+      const message = String((e as Error)?.message ?? e);
+      problems.push(`${kind} diagram: ${message.split('\n')[0]}`);
+      div.className = `diagram diagram-error`;
+      div.innerHTML = `<p><strong>${escapeHtml(kind)} error</strong></p><pre>${escapeHtml(message)}</pre><pre>${escapeHtml(code.textContent ?? '')}</pre>`;
+    }
+  }
 
   // Mermaid -> SVG.
   const blocks = [...main.querySelectorAll<HTMLElement>('pre > code.language-mermaid')];
@@ -118,9 +210,13 @@ export async function renderMarkdown(
 
   // Images -> data URIs.
   const imgs = [...main.querySelectorAll<HTMLImageElement>('img[src]')];
-  const srcs = [...new Set(imgs.map((img) => img.getAttribute('src')!).filter((s) => !/^data:/i.test(s)))];
+  const srcs = [...new Set([...imgs.map((img) => img.getAttribute('src')!).filter((s) => !/^data:/i.test(s)), ...plantuml.values()])];
   if (srcs.length > 0) {
     const images = await resolveImages(srcs);
+    for (const [img, url] of plantuml) {
+      if (images[url]) img.setAttribute('src', images[url]);
+      else img.replaceWith(Object.assign(document.createElement('pre'), { className: 'diagram-error', textContent: `PlantUML diagram not available: ${url}` }));
+    }
     for (const img of imgs) {
       const src = img.getAttribute('src')!;
       if (/^data:/i.test(src)) continue;
@@ -159,5 +255,5 @@ export async function renderMarkdown(
     id: h.id,
     text: (h.textContent ?? '').trim(),
   }));
-  return { html: main.innerHTML, headings, mermaidVersion: version, diagrams: blocks.length, problems };
+  return { html: main.innerHTML, headings, mermaidVersion: version, diagrams: blocks.length + others, problems, math: maths.length > 0 };
 }

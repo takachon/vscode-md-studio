@@ -76,8 +76,7 @@ VS Code の自動更新は Marketplace 経由のものなので、共有フォ�
 | 書式 | <kbd>Ctrl</kbd>+<kbd>B</kbd> 太字、<kbd>Ctrl</kbd>+<kbd>I</kbd> 斜体、<kbd>Ctrl</kbd>+<kbd>D</kbd> 取り消し線、<kbd>Ctrl</kbd>+<kbd>K</kbd> リンク、<kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> 元に戻す / やり直し |
 | 保存 | <kbd>Ctrl</kbd>+<kbd>S</kbd> またはツールバーの 💾 (通常の保存と同じ。git の差分もそのまま) |
 | 拡大・縮小 | <kbd>Ctrl</kbd>+マウスホイール。<kbd>Ctrl</kbd>+<kbd>0</kbd> で 100% に戻す (倍率は次に開いたときも保持) |
-| 画像を大きく見る | 画像をクリック。ホイールで拡大縮小、ドラッグで移動、ダブルクリックで等倍 / 全体、<kbd>Esc</kbd> で閉じる |
-| 図を大きく見る | 図にマウスを乗せると右上に出る ⤢ ボタン |
+| 画像・図を大きく見る | マウスを乗せると右上に出る ⤢ ボタン (小さなアイコン画像は右クリック → **View Large**)。ホイールで拡大縮小、ドラッグで移動、ダブルクリックで等倍 / 全体、<kbd>Esc</kbd> で閉じる。画像をクリックしただけでは開かない (カーソルが置かれるだけ) |
 | 画像の表示サイズ | 画像を右クリック → 25% / 50% / 75% / 100% / 元のサイズ / 任意の値。Markdown には `<img src=".." width="50%">` として保存 (GitLab / GitHub / VS Code のプレビューでも同じ大きさで表示)。「元のサイズ」で `![](..)` に戻る |
 | リンクを開く | <kbd>Ctrl</kbd>+クリック (http は既定のブラウザ、相対パスの `.md` などは VS Code で開く) |
 | 画像を貼る | クリップボードの画像を貼り付け、またはファイルをドロップ → `images/` (設定で変更可) に保存 |
@@ -104,6 +103,7 @@ VS Code の自動更新は Marketplace 経由のものなので、共有フォ�
 | `mdStudio.editor.outline` | `true` | 開いたときに左のアウトラインを表示 |
 | `mdStudio.editor.theme` | `auto` | エディタの色。`auto` = VS Code に合わせる / `light` / `warm` (生成り) / `sepia` / `dark` / `midnight`。ツールバーの 🎨 から選ぶとここに保存される |
 | `mdStudio.editor.allowRemoteImages` | `false` | `https:` の画像をエディタで表示する (オンにすると外部通信が発生) |
+| `mdStudio.plantuml.server` | 空 | PlantUML サーバーの URL (`http://サーバー/plantuml` の形。`/svg/...` の手前まで)。空 = PlantUML は描かない |
 | `mdStudio.image.folder` | `images` | 貼り付けた画像の保存先 (Markdown ファイルからの相対) |
 | `mdStudio.export.*` / `mdStudio.pdf.*` | | 書き出し画面の既定値 (画面の **Save as Default** で保存) |
 | `mdStudio.pdf.browserPath` | 空 | PDF の印刷に使うブラウザ。空 = Edge / Chrome を自動で探す |
@@ -144,6 +144,26 @@ flowchart LR
 ファイルが見つからないときは警告を出して同梱版を使います。Mermaid 11 で `layout: elk` を指定すると、
 ELK は 11 では別パッケージなので dagre で描かれます。
 
+## 数式と図
+
+エディタでも書き出し (HTML / PDF) でも同じ絵になります。描画用のライブラリは拡張に同梱しているので、PlantUML 以外はネットに出ません。
+Markdown はコードブロックのまま保存されるので、GitLab / GitHub でも (対応しているものは) 表示されます。
+
+| 書き方 | 内容 |
+|---|---|
+| `$E=mc^2$` / `$$ ... $$` / ` ```math ` | 数式 (KaTeX。化学式 `\ce{H2O}` も可) |
+| ` ```mermaid ` | Mermaid (上記) |
+| ` ```graphviz ` | Graphviz の DOT 言語 (`digraph G { A -> B }`) |
+| ` ```flowchart ` | flowchart.js の流れ図 (`st=>start: 開始` …) |
+| ` ```echarts ` | ECharts のグラフ。オプションを `{ ... }` で書く (コメント・引用符なしのキー・末尾カンマ可)。関数 (`formatter: function…`) は使えない。高さは `height: 300` で指定 (既定 400) |
+| ` ```mindmap ` | 箇条書き (`- 項目`、字下げで子) をマインドマップに |
+| ` ```markmap ` | 見出しと箇条書きを markmap で描く |
+| ` ```abc ` | ABC 記法の楽譜 |
+| ` ```smiles ` | SMILES の化学構造式 (`CC(=O)O`) |
+| ` ```plantuml ` | PlantUML。**`mdStudio.plantuml.server` に社内の PlantUML サーバーを設定したときだけ**描画 (図のテキストがそのサーバーに送られる) |
+
+図にマウスを乗せると右上の ⤢ で大きく表示できます。書けない内容は赤枠でエラーを表示し、書き出しでは「問題」に出ます。
+
 ## 書き出し (HTML / PDF)
 
 **MD Studio: Export...** (ツールバーの書き出しボタン) で書き出し画面が開きます。形式と出力先を選んで **Export**。
@@ -166,7 +186,8 @@ ELK は 11 では別パッケージなので dagre で描かれます。
 - Mermaid は描画済みの SVG、見出しには GitHub / GitLab と同じ規則のアンカー (`## 3.7 Foo` → `#37-foo`、同名は `-1`, `-2`)。
 - 出力に `<script>` は入りません (Markdown 中の生 HTML の `<script>`・`on…` 属性・`javascript:` リンクも除去)。
 - 見つからない画像、`https:` の画像 (埋め込まず URL のまま)、飛び先の無いページ内リンク、描けなかった図は「問題」として表示。
-- 数式 (`$...$`) は書き出しでは数式として描画されません (テキストのまま)。
+- 数式は KaTeX で描画し、フォントも HTML に埋め込みます (数式がある文書だけ。約 400 KB 増える)。
+- Graphviz などの図 (下記「数式と図」) も SVG で埋め込み。PlantUML は書き出し時にサーバーから SVG を取得して埋め込みます。
 
 ### PDF について
 

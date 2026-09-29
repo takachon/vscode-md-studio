@@ -7,7 +7,7 @@ import { bodyFontFamily, detectLang, exportDocument, exportPanelHtml, pageCss, t
 import { PdfPrinter, allBrowsers, blockingPolicies, findBrowser, namedDestinationPages, printPdfCli } from './pdf';
 import { spawn } from 'node:child_process';
 import type { ExportOptions, ExporterToHost, FontPreset, Heading, HostToExporter, ImageMode } from './protocol';
-import { SECTION, editorFont, resolveMermaid, toSetup } from './settings';
+import { SECTION, editorFont, plantumlServer, resolveMermaid, toSetup } from './settings';
 import type { Log } from './log';
 
 const MIME: Record<string, string> = {
@@ -126,19 +126,48 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
   }
 }
 
-/** Maps image srcs according to `mode`; problems are appended. */
+/** SVG of a PlantUML diagram from the configured server, as a data URI. */
+async function fetchPlantuml(url: string): Promise<string> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+  const type = res.headers.get('content-type') ?? '';
+  // The server answers syntax errors with 400 and an SVG that shows the error: keep it.
+  if (!/svg/i.test(type)) throw new Error(`HTTP ${res.status} ${res.statusText} (${type || 'no content type'})`);
+  return `data:image/svg+xml;base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
+}
+
+/** KaTeX's CSS with its WOFF2 fonts inlined (the woff / ttf fallbacks are dropped). */
+async function katexCss(ext: vscode.Uri): Promise<string> {
+  const dir = vscode.Uri.joinPath(ext, 'media', 'vendor', 'vditor', 'dist', 'js', 'katex');
+  const css = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, 'katex.min.css'))).toString('utf8');
+  const fonts = new Map<string, string>();
+  for (const m of css.matchAll(/url\((fonts\/[\w-]+\.woff2)\)/g)) {
+    if (!fonts.has(m[1])) fonts.set(m[1], Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, m[1]))).toString('base64'));
+  }
+  return css.replace(/src:url\((fonts\/[\w-]+\.woff2)\) format\("woff2"\)[^;}]*/g, (_all, f: string) => `src:url(data:font/woff2;base64,${fonts.get(f)}) format("woff2")`);
+}
+
+/** Maps image srcs according to `mode`; problems are appended. PlantUML diagrams are always embedded. */
 async function resolveImages(
   doc: vscode.Uri,
   target: vscode.Uri,
   mode: ImageMode,
   srcs: string[],
   problems: string[],
+  plantuml = '',
 ): Promise<{ map: Record<string, string>; count: number }> {
   const map: Record<string, string> = {};
   const outDir = vscode.Uri.joinPath(target, '..');
   const filesDirName = path.posix.basename(target.path).replace(/\.[^.]+$/, '') + '_files';
   const usedNames = new Set<string>();
   for (const src of srcs) {
+    if (plantuml && src.startsWith(`${plantuml}/`)) {
+      try {
+        map[src] = await fetchPlantuml(src);
+      } catch (e) {
+        problems.push(`PlantUML server ${plantuml}: ${String((e as Error).message ?? e)}`);
+      }
+      continue;
+    }
     const uri = imageUri(doc, src);
     if (typeof uri === 'string') {
       problems.push(uri);
@@ -334,6 +363,8 @@ class ExportPanel {
       settings: {
         mermaid: toSetup(webview, mermaid),
         hljsUrl: webview.asWebviewUri(vscode.Uri.joinPath(ext, 'media', 'vendor', 'vditor', 'dist', 'js', 'highlight.js', 'highlight.min.js')).toString(),
+        libBase: webview.asWebviewUri(vscode.Uri.joinPath(ext, 'media', 'vendor', 'vditor', 'dist', 'js')).toString(),
+        plantumlServer: plantumlServer(this.doc.uri),
       },
     });
   }
@@ -396,11 +427,11 @@ class ExportPanel {
     let imageCount = 0;
     const mode: ImageMode = options.format === 'pdf' ? 'embed' : options.images;
     this.waiters.images = async (srcs) => {
-      const r = await resolveImages(this.doc.uri, target, mode, srcs, problems);
+      const r = await resolveImages(this.doc.uri, target, mode, srcs, problems, plantumlServer(this.doc.uri));
       imageCount = r.count;
       return r.map;
     };
-    return new Promise<{ html: string; headings: Heading[]; mermaidVersion: string; diagrams: number; problems: string[]; images: number }>(
+    return new Promise<{ html: string; headings: Heading[]; mermaidVersion: string; diagrams: number; problems: string[]; math: boolean; images: number }>(
       (resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('Rendering timed out after 120 s')), 120_000);
         this.waiters.rendered = (m) => {
@@ -457,6 +488,7 @@ class ExportPanel {
           ? Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(ext, 'media', 'vendor', 'vditor', 'dist', 'js', 'highlight.js', 'styles', f))).toString('utf8')
           : '';
       const codeCss = { light: await readCss('github.min.css'), dark: await readCss('github-dark.min.css') };
+      const extraCss = r.math ? await katexCss(ext) : '';
       const version = String(this.context.extension.packageJSON.version ?? '');
       const generator = `MD Studio ${version}${r.mermaidVersion ? ` (Mermaid ${r.mermaidVersion})` : ''}`;
       const font = { family: fontFamily(options, this.doc.uri), code: editorFont(this.doc.uri).codeFamily, pdfSize: options.pdf.fontSize };
@@ -472,7 +504,7 @@ class ExportPanel {
                 position: options.html.toc,
                 html: tocHtml(r.headings, { depth: options.tocDepth, title: options.tocTitle, className: `toc-${options.html.toc}` }),
               };
-        const html = exportDocument({ title, body: r.html, codeCss, generator, theme: options.html.theme, maxWidth: options.html.maxWidth, toc, font, lang });
+        const html = exportDocument({ title, body: r.html, codeCss, generator, theme: options.html.theme, maxWidth: options.html.maxWidth, toc, font, lang, extraCss });
         if (/<script[\s>]/i.test(html)) throw new Error('internal error: exported HTML contains <script>');
         bytes = Buffer.from(html, 'utf8');
       } else {
@@ -500,6 +532,7 @@ class ExportPanel {
           return exportDocument({
             title, body: r.html, codeCss, generator, theme: 'light', maxWidth: 0, toc, print: true, font, lang,
             pageCss: pageCss(options, title),
+            extraCss,
           });
         };
         const dir = mkdtempSync(path.join(tmpdir(), 'md-studio-export-'));

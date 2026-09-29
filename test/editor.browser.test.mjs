@@ -15,10 +15,10 @@ after(async () => {
   for (const s of servers) s.close();
 });
 
-async function openEditor(text, serverOpts = {}) {
+async function openEditor(text, serverOpts = {}, viewport = { width: 1100, height: 900 }) {
   const srv = await startServer(serverOpts);
   servers.push(srv);
-  const ctx = await offlinePage(browser, srv.origin, { viewport: { width: 1100, height: 900 } });
+  const ctx = await offlinePage(browser, srv.origin, { viewport });
   const { page } = ctx;
   await page.goto(`${srv.origin}/editor.html`);
   await page.waitForFunction(() => window.__posted.some((m) => m.type === 'ready'));
@@ -116,11 +116,19 @@ test('Ctrl+wheel zooms the document and reports the level', async () => {
   await page.close();
 });
 
-test('clicking an image or the diagram button opens the viewer; markdown is unchanged', async () => {
+test('the enlarge button on an image or a diagram opens the viewer; markdown is unchanged', async () => {
   const text = await readFile(join(fixtures, 'sample.md'), 'utf8');
   const { page, norm } = await openEditor(text);
-  await page.waitForFunction(() => document.querySelectorAll('.md-diagram-expand').length === 2, null, { timeout: 20000 });
-  await page.locator('.vditor-reset img').first().click();
+  await page.waitForFunction(() => document.querySelectorAll('.md-diagram-expand:not(.md-image-expand)').length === 2, null, { timeout: 20000 });
+  // Clicking the image itself only places the cursor (Word-like); the corner button opens the viewer.
+  const img = page.locator('.vditor-reset img').first();
+  await img.click();
+  assert.equal(await page.locator('.md-lightbox').count(), 0);
+  // 16 px icons get no corner button (it would cover them); the right-click menu has View Large.
+  await img.hover();
+  assert.equal(await page.locator('.md-image-expand--visible').count(), 0);
+  await img.click({ button: 'right' });
+  await page.locator('.md-context-menu button', { hasText: 'View Large' }).click();
   await page.waitForSelector('.md-lightbox img.md-lightbox__content');
   assert.match(await page.locator('.md-lightbox__title').innerText(), /red/);
   await page.keyboard.press('Escape');
@@ -210,7 +218,8 @@ test('<img> inside a paragraph or table cell is drawn as an image and can be res
   assert.match((await posted(page, 'edit')).at(-1).text, /\| <img src="images\/blue%20dot\.png" alt="blue" width="75%"> \| x \|/);
   await page.waitForFunction(() => document.querySelectorAll('code.md-inline-img').length === 2);
   // And it opens in the viewer.
-  await page.locator('code.md-inline-img').nth(1).click();
+  await page.locator('code.md-inline-img').nth(1).click({ button: 'right' });
+  await page.locator('.md-context-menu button', { hasText: 'View Large' }).click();
   await page.waitForSelector('.md-lightbox img.md-lightbox__content');
   await page.close();
 });
@@ -243,4 +252,42 @@ test('editor themes recolor the page and switch without touching the markdown', 
   assert.deepEqual((await posted(page, 'command')).map((m) => m.command), ['theme']);
   assert.deepEqual(await posted(page, 'edit'), [], 'switching themes is not an edit');
   assert.deepEqual(errors, []);
+});
+
+test('math and the other diagram kinds are drawn in the editor; the Markdown is unchanged', async () => {
+  const text = await readFile(join(fixtures, 'diagrams.md'), 'utf8');
+  const server = 'https://plantuml.example.invalid/plantuml';
+  const { page, errors } = await openEditor(text, { plantumlServer: server });
+  await page.waitForFunction(() => document.querySelectorAll('[data-md-diagram] > .md-diagram-out').length === 8, null, { timeout: 30000 });
+  const drawn = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-md-diagram]')].map((e) => [
+    e.dataset.mdDiagram,
+    e.querySelector('.md-diagram-out > svg') ? 'svg' : e.querySelector('.md-diagram-out > img')?.getAttribute('src') ?? e.textContent.slice(0, 120),
+  ])));
+  for (const kind of ['graphviz', 'flowchart', 'echarts', 'mindmap', 'markmap', 'abc', 'smiles']) assert.equal(drawn[kind], 'svg', kind);
+  assert.match(drawn.plantuml, /^https:\/\/plantuml\.example\.invalid\/plantuml\/svg\/~1/);
+  assert.ok(await page.evaluate(() => document.querySelectorAll('.vditor-reset .katex').length) >= 2, 'math is drawn');
+  // Diagrams get the enlarge button; nothing was written back.
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.md-diagram > .md-diagram-expand').length), 8);
+  assert.deepEqual(await posted(page, 'edit'), []);
+  // The unreachable PlantUML host is the only failed load.
+  assert.deepEqual(errors.filter((e) => !/ERR_NAME_NOT_RESOLVED|Failed to load resource/.test(e)), []);
+});
+
+test('the corner button of an image opens the viewer, which keeps the aspect ratio beyond 100 %', async () => {
+  const { page } = await openEditor('# T\n\n![wide](images/wide.png)\n', {}, { width: 900, height: 500 });
+  const img = page.locator('.vditor-reset img').first();
+  await page.waitForFunction(() => document.querySelector('.vditor-reset img')?.naturalWidth > 0);
+  await img.hover();
+  await page.locator('.md-image-expand.md-image-expand--visible').click();
+  await page.waitForSelector('.md-lightbox img.md-lightbox__content');
+  assert.equal(await page.locator('.md-lightbox__title').innerText(), 'wide');
+  for (let i = 0; i < 10; i++) await page.locator('.md-lightbox button[data-act="in"]').click();
+  const r = await page.evaluate(() => {
+    const e = document.querySelector('.md-lightbox__content');
+    const b = e.getBoundingClientRect();
+    return { zoom: document.querySelector('.md-lightbox__zoom').textContent, w: b.width, h: b.height };
+  });
+  assert.ok(parseInt(r.zoom) > 500, r.zoom);
+  assert.ok(r.h > 500, 'taller than the webview');
+  assert.ok(Math.abs(r.w / r.h - 4) < 0.01, `ratio ${r.w / r.h}`);
 });

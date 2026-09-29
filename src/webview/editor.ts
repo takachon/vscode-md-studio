@@ -1,5 +1,6 @@
 import type { EditorSettings, EditorTheme, EditorToHost, HostToEditor } from '../protocol';
 import { applyTheme, isDarkTheme } from './themes';
+import { installEditorDiagrams } from './editorDiagrams';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion, type MermaidApi } from './mermaidLoader';
 import { closeLightbox, lightboxOpen, showLightbox } from './lightbox';
 import { toolbarItems } from './toolbar';
@@ -93,6 +94,7 @@ function setEditorTheme(theme: EditorTheme): void {
   applyTheme(theme);
   if (!vditor || themeDark === isDarkTheme()) return;
   themeDark = isDarkTheme();
+  diagrams.redraw();
   const [t, contentTheme, codeTheme] = themeArgs();
   vditor.setTheme(t, contentTheme, codeTheme, `${settings.vditorCdn}/dist/css/content-theme`);
 }
@@ -332,32 +334,75 @@ function markdownSrc(img: HTMLImageElement): string | undefined {
   return undefined;
 }
 
-document.addEventListener('click', (e) => {
-  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-  const target = e.target as HTMLElement;
-  const hit = target.closest<HTMLElement>('.vditor-reset img, .vditor-reset code.md-inline-img');
-  const img = hit && asImage(hit);
-  if (hit && img && (img.naturalWidth > 0 || !(hit instanceof HTMLImageElement))) {
-    const src = hit instanceof HTMLImageElement ? markdownSrc(img) : hit.dataset.mdSrc;
-    showLightbox(img, {
-      title: img.getAttribute('alt') || src || '',
-      onOpen: src ? () => post({ type: 'openLink', href: src }) : undefined,
-    });
+// Images: a hover button in the top-right corner (like diagrams); clicking the image itself only
+// places the cursor, as in Word. An <img> cannot hold children, so one floating button is moved around.
+const IMAGE_HOVER = '.vditor-reset img:not(.emoji):not(.md-plantuml), .vditor-reset code.md-inline-img';
+let hovered: HTMLElement | undefined;
+const imageExpand = document.createElement('button');
+imageExpand.type = 'button';
+imageExpand.className = 'md-diagram-expand md-image-expand';
+imageExpand.title = 'View image large';
+imageExpand.textContent = '⤢';
+document.body.appendChild(imageExpand);
+
+function placeImageExpand(): void {
+  const r = hovered?.isConnected ? hovered.getBoundingClientRect() : undefined;
+  if (!r || r.width < 24 || r.height < 24 || lightboxOpen()) {
+    imageExpand.classList.remove('md-image-expand--visible');
     return;
   }
-  const expand = target.closest('.md-diagram-expand');
-  if (expand) {
+  imageExpand.style.left = `${r.right - 32}px`;
+  imageExpand.style.top = `${Math.max(r.top + 6, 4)}px`;
+  imageExpand.classList.add('md-image-expand--visible');
+}
+
+document.addEventListener('mouseover', (e) => {
+  const t = e.target as HTMLElement;
+  if (t === imageExpand) return;
+  const img = t.closest<HTMLElement>(IMAGE_HOVER) ?? undefined;
+  if (img !== hovered) {
+    hovered = img;
+    placeImageExpand();
+  }
+});
+document.addEventListener('scroll', () => {
+  hovered = undefined;
+  placeImageExpand();
+}, true);
+
+function openImage(hit: HTMLElement): void {
+  const img = asImage(hit);
+  if (!img || (hit instanceof HTMLImageElement && img.naturalWidth === 0)) return;
+  const src = hit instanceof HTMLImageElement ? markdownSrc(img) : hit.dataset.mdSrc;
+  showLightbox(img, {
+    title: img.getAttribute('alt') || src || '',
+    onOpen: src ? () => post({ type: 'openLink', href: src }) : undefined,
+  });
+}
+
+imageExpand.addEventListener('mousedown', (e) => e.preventDefault()); // keep the editor's selection
+imageExpand.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (hovered) openImage(hovered);
+  hovered = undefined;
+  placeImageExpand();
+});
+
+document.addEventListener('click', (e) => {
+  const expand = (e.target as HTMLElement).closest('.md-diagram-expand');
+  if (expand && expand !== imageExpand) {
     e.preventDefault();
     e.stopPropagation();
-    const svg = expand.parentElement?.querySelector<SVGSVGElement>('svg');
-    if (svg) showLightbox(svg, { title: 'Diagram' });
+    const pic = expand.parentElement?.querySelector<SVGSVGElement | HTMLImageElement>('svg, img');
+    if (pic) showLightbox(pic, { title: 'Diagram' });
   }
 }, true);
 
 // Add an "enlarge" button to every rendered diagram.
 new MutationObserver(() => {
-  for (const d of document.querySelectorAll<HTMLElement>('.language-mermaid[data-processed="true"]')) {
-    if (d.querySelector(':scope > svg') && !d.querySelector(':scope > .md-diagram-expand')) {
+  for (const d of document.querySelectorAll<HTMLElement>('.language-mermaid[data-processed="true"], .md-diagram')) {
+    if (d.querySelector(':scope > svg, :scope > .md-diagram-out > svg, :scope > .md-diagram-out > img') && !d.querySelector(':scope > .md-diagram-expand')) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'md-diagram-expand';
@@ -378,6 +423,11 @@ window.addEventListener('message', (e: MessageEvent<HostToEditor>) => {
 new MutationObserver(() => setEditorTheme(editorTheme)).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
 installMermaidFacade();
+const diagrams = installEditorDiagrams(() => ({
+  libBase: `${settings.vditorCdn}/dist/js`,
+  plantumlServer: settings.plantumlServer ?? '',
+  dark: isDarkTheme(),
+}));
 installInlineImages(settings.linkBase);
 installImageMenu({
   getValue: () => vditor?.getValue() ?? '',

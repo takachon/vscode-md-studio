@@ -90,6 +90,11 @@ export function resourceRoots(extensionUri: vscode.Uri, doc: vscode.Uri, extra: 
 }
 
 /** VS Code settings that decide the editor's fonts (the same ones the built-in Markdown preview uses). */
+/** mdStudio.plantuml.server without trailing slashes, '' when not set. */
+export function plantumlServer(scope?: vscode.Uri): string {
+  return vscode.workspace.getConfiguration(SECTION, scope).get<string>('plantuml.server', '').trim().replace(/\/+$/, '');
+}
+
 export const FONT_SETTINGS = ['markdown.preview.fontFamily', 'markdown.preview.fontSize', 'markdown.preview.lineHeight', 'editor.fontFamily', 'editor.fontSize'];
 
 export function editorFont(scope?: vscode.Uri): EditorFont {

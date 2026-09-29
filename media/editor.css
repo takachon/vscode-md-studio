@@ -38,12 +38,22 @@ body { background: var(--vscode-editor-background); overflow: hidden; }
 .vditor-ir pre.vditor-reset, .vditor-wysiwyg pre.vditor-reset, .vditor-sv { padding: 16px 32px !important; }
 
 /* Diagrams drawn with light themes stay readable on dark editors. */
-body.md-dark .language-mermaid[data-processed="true"] {
+body.md-dark .language-mermaid[data-processed="true"],
+body.md-dark .md-diagram:not(.language-echarts):not(.language-mindmap):not(.language-smiles) .md-diagram-out {
   background: #fff;
   border-radius: 6px;
   padding: 8px;
 }
 .language-mermaid svg { max-width: 100%; height: auto; }
+/* Other diagrams (editorDiagrams.ts): centered pictures, source stays in Markdown. */
+.vditor-reset .md-diagram { position: relative; text-align: center; overflow-x: auto; white-space: normal; }
+.md-diagram-out { display: inline-block; max-width: 100%; }
+.md-diagram-out > svg, .md-diagram-out > img { max-width: 100%; height: auto; vertical-align: top; }
+.md-diagram-error {
+  text-align: left; color: var(--vscode-errorForeground, #d1242f); border: 1px solid currentColor;
+  border-radius: 6px; padding: 6px 10px; background: var(--vscode-editor-background);
+}
+.md-diagram-error pre { white-space: pre-wrap; margin: 4px 0 0; font-size: 12px; background: none !important; }
 .md-studio-mermaid-error {
   text-align: left;
   color: var(--vscode-errorForeground, #d1242f);
@@ -129,14 +139,16 @@ body.md-dark .language-mermaid[data-processed="true"] {
 }
 
 /* Images and diagrams can be enlarged. */
-.vditor-reset img { cursor: zoom-in; }
 .language-mermaid[data-processed="true"] { position: relative; }
 .md-diagram-expand {
   position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0; cursor: default;
   font-size: 15px; line-height: 24px; border-radius: 4px; opacity: 0; transition: opacity .15s;
   color: #333; background: rgba(255,255,255,.9); border: 1px solid #bbb;
 }
-.language-mermaid[data-processed="true"]:hover > .md-diagram-expand { opacity: 1; }
+.language-mermaid[data-processed="true"]:hover > .md-diagram-expand, .md-diagram:hover > .md-diagram-expand { opacity: 1; }
+/* The one button shared by all images (editor.ts), placed over the hovered image. */
+.md-image-expand { position: fixed; z-index: 40; pointer-events: none; }
+.md-image-expand--visible { opacity: 1; pointer-events: auto; }
 .md-lightbox {
   position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
   background: rgba(20, 20, 20, .88); outline: none; font: 13px var(--vscode-font-family, sans-serif);
@@ -146,7 +158,8 @@ body.md-dark .language-mermaid[data-processed="true"] {
 .md-lightbox__zoom { min-width: 48px; text-align: right; opacity: .8; }
 .md-lightbox__stage { position: relative; flex: 1; overflow: hidden; cursor: grab; }
 .md-lightbox__stage:active { cursor: grabbing; }
-.md-lightbox__content { position: absolute; left: 0; top: 0; max-width: none !important; transform-origin: 0 0; background: #fff; user-select: none; -webkit-user-drag: none; }
+/* max-height too: VS Code's webview default style caps img at 100% (the picture was squashed past 100 %). */
+.md-lightbox__content { position: absolute; left: 0; top: 0; max-width: none !important; max-height: none !important; transform-origin: 0 0; background: #fff; user-select: none; -webkit-user-drag: none; }
 
 /* Right-click menu on images. */
 .md-context-menu {
@@ -173,7 +186,7 @@ body.md-dark .language-mermaid[data-processed="true"] {
 .vditor-reset code.md-inline-img {
   display: inline-block; max-width: 100%; height: auto; min-height: 16px; vertical-align: middle;
   padding: 0 !important; margin: 0; border-radius: 0; font-size: 0 !important; color: transparent !important;
-  background: transparent center / contain no-repeat !important; cursor: zoom-in; user-select: none;
+  background: transparent center / contain no-repeat !important; user-select: none;
 }
 .vditor-reset code.md-inline-img--broken { min-width: 24px; outline: 1px dashed var(--vscode-errorForeground, #d1242f); }
 

@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { editorHtml } from './html';
 import { mergeEdit, minimalReplace } from './merge';
 import type { EditorSettings, EditorTheme, EditorToHost, HostToEditor, ToolbarCommand } from './protocol';
-import { FONT_SETTINGS, SECTION, editorFont, resolveMermaid, resourceRoots, toSetup } from './settings';
+import { FONT_SETTINGS, SECTION, editorFont, plantumlServer, resolveMermaid, resourceRoots, toSetup } from './settings';
 import type { Log } from './log';
 
 export const VIEW_TYPE = 'mdStudio.editor';
@@ -178,6 +178,7 @@ class EditorSession {
       toolbar: cfg.get('editor.toolbar', true),
       outline: cfg.get('editor.outline', true),
       theme: this.theme(),
+      plantumlServer: plantumlServer(this.document.uri),
       font: editorFont(this.document.uri),
       zoom: this.context.globalState.get<number>(ZOOM_KEY, 1),
       mermaid: toSetup(webview, mermaid),

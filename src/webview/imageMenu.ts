@@ -2,7 +2,7 @@
 import { asImage, attrOf } from './inlineImages.ts';
 
 /** Images in the editor: real <img> elements and inline-HTML images drawn by inlineImages.ts. */
-export const IMAGE_SELECTOR = 'img:not(.emoji), code.md-inline-img';
+export const IMAGE_SELECTOR = 'img:not(.emoji):not(.md-plantuml), code.md-inline-img';
 
 export interface ImageMenuHost {
   getValue(): string;

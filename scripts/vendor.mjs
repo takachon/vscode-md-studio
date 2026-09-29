@@ -13,7 +13,7 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
 // Vditor: keep the layout under dist/ because Vditor loads its helpers from `${cdn}/dist/...`.
-// Only what the editor uses offline is copied (no MathJax / PlantUML / ECharts / Graphviz ...).
+// Only what MD Studio uses is copied (no MathJax, WaveDrom, Vditor's Mermaid).
 const vditor = pkgDir('vditor');
 const vOut = join(out, 'vditor');
 for (const p of [
@@ -26,6 +26,14 @@ for (const p of [
   'dist/js/i18n',
   'dist/js/icons',
   'dist/js/katex',
+  // Diagram blocks (src/webview/diagrams.ts).
+  'dist/js/graphviz',
+  'dist/js/flowchart.js',
+  'dist/js/echarts',
+  'dist/js/markmap',
+  'dist/js/abcjs',
+  'dist/js/smiles-drawer',
+  'dist/js/plantuml',
   'dist/js/highlight.js/LICENSE',
   'dist/js/highlight.js/highlight.min.js',
   'dist/js/highlight.js/third-languages.js',
