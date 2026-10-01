@@ -23,6 +23,8 @@ export interface EditorSettings {
   font: EditorFont;
   /** Content zoom factor (Ctrl+wheel), 1 = 100 %. */
   zoom: number;
+  /** The document can be viewed but not changed (mdStudio.editor.readOnly, or a read-only file system). */
+  readOnly: boolean;
   mermaid: MermaidSetup;
 }
 
@@ -38,7 +40,7 @@ export interface EditorFont {
 /** `auto` follows VS Code's color theme. */
 export type EditorTheme = 'auto' | 'light' | 'warm' | 'sepia' | 'dark' | 'midnight';
 
-export type ToolbarCommand = 'openText' | 'save' | 'export' | 'settings' | 'theme';
+export type ToolbarCommand = 'openText' | 'save' | 'export' | 'settings' | 'theme' | 'readOnly';
 
 export interface ExportSettings {
   mermaid: MermaidSetup;
@@ -55,7 +57,8 @@ export type HostToEditor =
   | { type: 'flush'; requestId: number }
   | { type: 'imageSaved'; requestId: number; path?: string; error?: string }
   | { type: 'inputResult'; requestId: number; value?: string }
-  | { type: 'theme'; theme: EditorTheme };
+  | { type: 'theme'; theme: EditorTheme }
+  | { type: 'readOnly'; value: boolean };
 
 export type EditorToHost =
   | { type: 'ready' }

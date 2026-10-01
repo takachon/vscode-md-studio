@@ -72,6 +72,12 @@
         "category": "MD Studio"
       },
       {
+        "command": "mdStudio.toggleReadOnly",
+        "title": "Toggle Read-Only Mode",
+        "category": "MD Studio",
+        "icon": "$(lock)"
+      },
+      {
         "command": "mdStudio.showLog",
         "title": "Show Log",
         "category": "MD Studio"
@@ -124,6 +130,10 @@
         {
           "command": "mdStudio.export",
           "when": "resourceLangId == markdown || activeCustomEditorId == mdStudio.editor"
+        },
+        {
+          "command": "mdStudio.toggleReadOnly",
+          "when": "activeCustomEditorId == mdStudio.editor"
         },
         {
           "command": "mdStudio.exportHtml",
@@ -254,6 +264,11 @@
             "Dark blue page."
           ],
           "markdownDescription": "Color theme of the MD Studio editor. Can also be changed from the toolbar (Editor Theme button). Does not affect exports (see `#mdStudio.export.theme#`)."
+        },
+        "mdStudio.editor.readOnly": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Open Markdown files read-only: the document can be read, searched, copied and exported but not changed. Toggle per editor with the lock button on the toolbar or **MD Studio: Toggle Read-Only Mode**. Files on a read-only file system (e.g. the old side of a Git diff) are always read-only."
         },
         "mdStudio.editor.allowRemoteImages": {
           "type": "boolean",

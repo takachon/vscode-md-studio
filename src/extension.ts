@@ -53,6 +53,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }),
     ),
 
+    vscode.commands.registerCommand('mdStudio.toggleReadOnly', () => provider.activeSession()?.toggleReadOnly()),
+
     vscode.commands.registerCommand('mdStudio.showLog', () => log.show()),
     vscode.commands.registerCommand('mdStudio.checkForUpdates', () => updater.check(true)),
     updater,

@@ -79,6 +79,10 @@ function variables(p: Palette): Record<string, string> {
     'button-secondaryBackground': p.selection,
     'button-secondaryForeground': p.fg,
     'focusBorder': p.accent,
+    // Otherwise the scroll bars keep VS Code's colors (dark bars on a light theme and vice versa).
+    'scrollbarSlider-background': p.dark ? 'rgba(121,121,121,.4)' : 'rgba(100,100,100,.4)',
+    'scrollbarSlider-hoverBackground': 'rgba(100,100,100,.7)',
+    'scrollbarSlider-activeBackground': p.dark ? 'rgba(191,191,191,.4)' : 'rgba(0,0,0,.6)',
   };
 }
 
@@ -102,6 +106,8 @@ export function applyTheme(theme: EditorTheme): void {
     style.setProperty('--md-chrome-background', p.chrome);
     style.colorScheme = p.dark ? 'dark' : 'light';
   } else style.colorScheme = '';
+  // VS Code sets color-scheme on <html>, which also colors the scroll bars of the page.
+  document.documentElement.style.colorScheme = style.colorScheme;
   document.body.dataset.mdTheme = current;
   document.body.classList.toggle('md-dark', isDarkTheme());
 }

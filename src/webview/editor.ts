@@ -14,6 +14,8 @@ interface VditorInstance {
   insertValue(value: string, render?: boolean): void;
   setTheme(theme: 'dark' | 'classic', contentTheme?: string, codeTheme?: string, contentThemePath?: string): void;
   focus(): void;
+  disabled(): void;
+  enable(): void;
 }
 declare const Vditor: new (id: string | HTMLElement, options: Record<string, unknown>) => VditorInstance;
 declare function acquireVsCodeApi(): { postMessage(msg: EditorToHost): void };
@@ -115,7 +117,7 @@ function sendEdit(): void {
     clearTimeout(timer);
     timer = undefined;
   }
-  if (!vditor) return;
+  if (!vditor || readOnly) return;
   const text = vditor.getValue();
   if (text === lastSent) return;
   lastSent = text;
@@ -125,6 +127,33 @@ function sendEdit(): void {
 function scheduleEdit(): void {
   if (timer) clearTimeout(timer);
   timer = setTimeout(sendEdit, 250);
+}
+
+// --- Read-only mode -----------------------------------------------------------------------------
+let readOnly = settings.readOnly;
+
+/** Locks or unlocks the document; the host decides (setting, file system, toolbar button). */
+function applyReadOnly(): void {
+  document.body.classList.toggle('md-readonly', readOnly);
+  const button = document.querySelector<HTMLElement>('.vditor-toolbar button[data-type="md-readonly"]');
+  button?.classList.toggle('vditor-menu--current', readOnly);
+  button?.setAttribute('aria-label', readOnly ? 'Read-Only Mode (on): click to edit' : 'Read-Only Mode');
+  if (!vditor) return;
+  if (readOnly) vditor.disabled();
+  else vditor.enable();
+}
+
+// Vditor still reacts to clicks and keys inside a disabled editor (task list checkboxes, code block
+// and table popovers, drops), so those events never reach it while the document is read-only.
+// Listeners on document and window (links, zoom, image menu, Ctrl+S) run before this one.
+const EDIT_AREA = '.vditor-wysiwyg, .vditor-ir, .vditor-sv';
+for (const type of ['click', 'dblclick', 'mouseup', 'keydown', 'keyup', 'keypress', 'beforeinput', 'input', 'paste', 'cut', 'drop', 'dragover', 'compositionend']) {
+  document.getElementById('vditor')!.addEventListener(type, (e) => {
+    if (!readOnly || !(e.target as Element).closest?.(EDIT_AREA)) return;
+    e.stopPropagation();
+    if (e.type !== 'keydown' && e.type !== 'keyup' && e.type !== 'mouseup' && e.type !== 'click') e.preventDefault();
+    if (e.type === 'click' && (e.target as HTMLElement).matches('input[type="checkbox"]')) e.preventDefault();
+  }, true);
 }
 
 function sendBaseline(): void {
@@ -178,6 +207,7 @@ function create(text: string): void {
     input: scheduleEdit,
     blur: sendEdit,
     after: () => {
+      applyReadOnly();
       sendBaseline();
       installOutlineSpy();
       // Load Mermaid in the background so its version is known even without diagrams.
@@ -222,6 +252,7 @@ window.addEventListener('message', (event: MessageEvent<HostToEditor>) => {
       if (!vditor) create(msg.text);
       else {
         vditor.setValue(msg.text, true);
+        applyReadOnly();
         sendBaseline();
       }
       break;
@@ -232,18 +263,26 @@ window.addEventListener('message', (event: MessageEvent<HostToEditor>) => {
       }
       syncId = msg.syncId;
       vditor?.setValue(msg.text, true);
-      if (vditor) sendBaseline();
+      if (vditor) {
+        applyReadOnly();
+        sendBaseline();
+      }
       break;
     case 'flush': {
       if (timer) {
         clearTimeout(timer);
         timer = undefined;
       }
-      const text = vditor?.getValue();
+      // Nothing can have changed while read-only (the host flushes before locking).
+      const text = readOnly ? undefined : vditor?.getValue();
       if (text !== undefined) lastSent = text;
       post({ type: 'flushed', requestId: msg.requestId, text, syncId });
       break;
     }
+    case 'readOnly':
+      readOnly = msg.value;
+      applyReadOnly();
+      break;
     case 'inputResult':
       pendingInputs.get(msg.requestId)?.(msg.value);
       pendingInputs.delete(msg.requestId);
@@ -430,8 +469,10 @@ const diagrams = installEditorDiagrams(() => ({
 }));
 installInlineImages(settings.linkBase);
 installImageMenu({
+  readOnly: () => readOnly,
   getValue: () => vditor?.getValue() ?? '',
   setValue: (md) => {
+    if (readOnly) return;
     vditor?.setValue(md);
     sendEdit();
   },

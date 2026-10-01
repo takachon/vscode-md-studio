@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Read-only mode: the lock button on the toolbar (or **MD Studio: Toggle Read-Only Mode**) locks the document; it can still be read, searched, copied and exported. `mdStudio.editor.readOnly` opens files read-only. Files on a read-only file system (e.g. the old side of a Git diff) are always read-only.
+- ` ```jsonc ` and ` ```json5 ` code blocks are highlighted as JSON with comments.
+- Comments in code blocks are green (editor and exports).
+- Scroll bars follow the editor theme (they kept VS Code's colors, e.g. dark bars on the Light theme).
+
 ## 0.3.0
 
 - Math and more diagram kinds, drawn the same way in the editor and in HTML / PDF exports (static SVG, no scripts): KaTeX math (`$…$`, `$$…$$`, ` ```math `), Graphviz, flowchart.js, ECharts (options parsed as data, never evaluated), mind maps from lists, markmap, ABC notation and SMILES. All libraries are bundled.

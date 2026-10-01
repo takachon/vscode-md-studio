@@ -9,6 +9,7 @@ import type { Log } from './log';
 export const VIEW_TYPE = 'mdStudio.editor';
 const ZOOM_KEY = 'mdStudio.editor.zoom';
 const THEME_KEY = 'editor.theme';
+const READ_ONLY_KEY = 'editor.readOnly';
 
 const THEMES: Array<{ id: EditorTheme; label: string; detail: string }> = [
   { id: 'auto', label: 'Follow VS Code', detail: 'Same colors as the current VS Code color theme' },
@@ -103,6 +104,9 @@ class EditorSession {
   private readonly disposables: vscode.Disposable[] = [];
   private mermaidLabel = '';
   private renderedKey = '';
+  /** False for files that cannot be written (e.g. the old side of a Git diff). */
+  private readonly writable: boolean;
+  private readOnly: boolean;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -111,6 +115,8 @@ class EditorSession {
     readonly document: vscode.TextDocument,
     readonly panel: vscode.WebviewPanel,
   ) {
+    this.writable = vscode.workspace.fs.isWritableFileSystem(document.uri.scheme) !== false;
+    this.readOnly = !this.writable || this.readOnlySetting();
     this.disposables.push(
       panel.webview.onDidReceiveMessage((m: EditorToHost) => this.onMessage(m)),
       vscode.workspace.onDidChangeTextDocument((e) => {
@@ -121,6 +127,7 @@ class EditorSession {
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration(`${SECTION}.${THEME_KEY}`, document.uri)) this.post({ type: 'theme', theme: this.theme() });
+        if (e.affectsConfiguration(`${SECTION}.${READ_ONLY_KEY}`, document.uri)) void this.setReadOnly(this.readOnlySetting(), false);
         const fontChanged = FONT_SETTINGS.some((k) => e.affectsConfiguration(k, document.uri));
         // A theme change is applied in place; anything else rebuilds the page.
         if ((e.affectsConfiguration(SECTION, document.uri) || fontChanged) && this.renderKey() !== this.renderedKey) {
@@ -148,11 +155,32 @@ class EditorSession {
     return vscode.workspace.getConfiguration(SECTION, this.document.uri).get<EditorTheme>(THEME_KEY, 'auto');
   }
 
-  /** The settings the page is built from, except the theme. */
+  private readOnlySetting(): boolean {
+    return vscode.workspace.getConfiguration(SECTION, this.document.uri).get<boolean>(READ_ONLY_KEY, false);
+  }
+
+  /** Locks or unlocks this editor. Pending edits are written to the document before locking. */
+  async setReadOnly(value: boolean, explicit = true): Promise<void> {
+    if (!value && !this.writable) {
+      if (explicit) void vscode.window.showInformationMessage(`${this.fileName()} is on a read-only file system and cannot be edited.`);
+      value = true;
+    }
+    if (value === this.readOnly) return;
+    if (value) await this.flushAndApply();
+    this.readOnly = value;
+    this.post({ type: 'readOnly', value });
+  }
+
+  toggleReadOnly(): Promise<void> {
+    return this.setReadOnly(!this.readOnly);
+  }
+
+  /** The settings the page is built from, except the theme and read-only mode (applied in place). */
   private renderKey(): string {
     const cfg = { ...vscode.workspace.getConfiguration(SECTION, this.document.uri) } as Record<string, unknown>;
     const editor = { ...(cfg.editor as Record<string, unknown> | undefined) };
     delete editor.theme;
+    delete editor.readOnly;
     return JSON.stringify({ ...cfg, editor, font: editorFont(this.document.uri) });
   }
 
@@ -181,6 +209,7 @@ class EditorSession {
       plantumlServer: plantumlServer(this.document.uri),
       font: editorFont(this.document.uri),
       zoom: this.context.globalState.get<number>(ZOOM_KEY, 1),
+      readOnly: this.readOnly,
       mermaid: toSetup(webview, mermaid),
     };
     webview.html = editorHtml({
@@ -219,6 +248,7 @@ class EditorSession {
         }
         break;
       case 'edit':
+        if (this.readOnly) break;
         this.enqueue(() => this.applyFromEditor(m.text, m.syncId));
         break;
       case 'flushed':
@@ -226,6 +256,10 @@ class EditorSession {
         this.flushWaiters.delete(m.requestId);
         break;
       case 'saveImage':
+        if (this.readOnly) {
+          this.post({ type: 'imageSaved', requestId: m.requestId, error: 'the editor is read-only' });
+          break;
+        }
         void this.saveImage(m.requestId, m.name, m.mime, m.data);
         break;
       case 'openLink':
@@ -361,6 +395,9 @@ class EditorSession {
         break;
       case 'theme':
         await this.pickTheme();
+        break;
+      case 'readOnly':
+        await this.toggleReadOnly();
         break;
     }
   }

@@ -12,6 +12,7 @@ import link from '@vscode/codicons/src/icons/link.svg';
 import listOrdered from '@vscode/codicons/src/icons/list-ordered.svg';
 import listTree from '@vscode/codicons/src/icons/list-tree.svg';
 import listUnordered from '@vscode/codicons/src/icons/list-unordered.svg';
+import lock from '@vscode/codicons/src/icons/lock.svg';
 import quote from '@vscode/codicons/src/icons/quote.svg';
 import redo from '@vscode/codicons/src/icons/redo.svg';
 import save from '@vscode/codicons/src/icons/save.svg';
@@ -38,6 +39,7 @@ export function toolbarItems(run: (command: ToolbarCommand) => void) {
     custom('md-open-text', goToFile, 'Open as Text Editor', 'openText'),
     custom('md-save', save, 'Save (Ctrl+S)', 'save'),
     custom('md-export', exportIcon, 'Export (HTML / PDF)…', 'export'),
+    custom('md-readonly', lock, 'Read-Only Mode', 'readOnly'),
     '|',
     builtin('headings', textSize, 'Heading'),
     builtin('bold', bold, 'Bold (Ctrl+B)'),

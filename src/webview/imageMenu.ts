@@ -5,6 +5,8 @@ import { asImage, attrOf } from './inlineImages.ts';
 export const IMAGE_SELECTOR = 'img:not(.emoji):not(.md-plantuml), code.md-inline-img';
 
 export interface ImageMenuHost {
+  /** No size items while the document cannot be changed. */
+  readOnly(): boolean;
   getValue(): string;
   setValue(markdown: string): void;
   openImage(href: string): void;
@@ -118,7 +120,7 @@ function showMenu(host: ImageMenuHost, img: HTMLElement, x: number, y: number): 
   closeMenu();
   const current = (img instanceof HTMLImageElement ? img.getAttribute('width') : attrOf(img.dataset.mdImg ?? '', 'width')) ?? '';
   const src = host.markdownSrc(img);
-  const items: Array<[string, string] | '-'> = [
+  const sizes: Array<[string, string] | '-'> = [
     ['25%', 'Small (25%)'],
     ['50%', 'Medium (50%)'],
     ['75%', 'Large (75%)'],
@@ -126,6 +128,9 @@ function showMenu(host: ImageMenuHost, img: HTMLElement, x: number, y: number): 
     ['', 'Original Size'],
     ['custom', 'Custom Size…'],
     '-',
+  ];
+  const items: Array<[string, string] | '-'> = [
+    ...(host.readOnly() ? [] : sizes),
     ['view', 'View Large'],
     ...(src ? ([['open', 'Open Image File']] as Array<[string, string]>) : []),
   ];

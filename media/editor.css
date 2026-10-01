@@ -2,6 +2,12 @@
    the same --vscode-* variables on <body>. */
 html, body { height: 100%; margin: 0; padding: 0; }
 body { background: var(--vscode-editor-background); overflow: hidden; }
+/* Scroll bars follow the editor theme (themes.ts sets the slider colors) on every background. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: var(--vscode-scrollbarSlider-background); }
+::-webkit-scrollbar-thumb:hover { background-color: var(--vscode-scrollbarSlider-hoverBackground); }
+::-webkit-scrollbar-thumb:active { background-color: var(--vscode-scrollbarSlider-activeBackground); }
 #vditor { height: 100vh !important; border: 0; }
 
 /* Blend Vditor into the VS Code theme. */
@@ -35,6 +41,9 @@ body { background: var(--vscode-editor-background); overflow: hidden; }
 }
 .vditor-reset pre code, .vditor-reset pre.vditor-ir__marker--pre code { font-size: var(--md-code-font-size, 13px) !important; }
 .vditor-reset a { color: var(--vscode-textLink-foreground); }
+/* Code comments in green, as in VS Code's default themes. */
+.vditor-reset .hljs-comment { color: #008000; }
+body.md-dark .vditor-reset .hljs-comment { color: #6a9955; }
 .vditor-ir pre.vditor-reset, .vditor-wysiwyg pre.vditor-reset, .vditor-sv { padding: 16px 32px !important; }
 
 /* Diagrams drawn with light themes stay readable on dark editors. */
@@ -88,6 +97,8 @@ body.md-dark .md-diagram:not(.language-echarts):not(.language-mindmap):not(.lang
   outline: 1px solid var(--vscode-inputOption-activeBorder, transparent); outline-offset: -1px;
 }
 .vditor-toolbar .vditor-menu--disabled { opacity: .4; }
+/* Read-only: no caret in the document. */
+body.md-readonly .vditor-wysiwyg pre.vditor-reset, body.md-readonly .vditor-ir pre.vditor-reset { caret-color: transparent; }
 .vditor-toolbar__divider {
   float: none !important; width: 1px !important; height: 16px !important; margin: 0 6px !important; padding: 0 !important;
   border: 0 !important; background: var(--vscode-widget-border, rgba(128,128,128,.35));

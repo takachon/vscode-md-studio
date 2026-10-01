@@ -196,8 +196,8 @@ ${sidebar ? `<div class="layout">\n${o.toc!.html}\n${main}\n</div>` : main}
 `;
 }
 
-const LIGHT = `--fg:#1f2328;--muted:#59636e;--bg:#fff;--subtle:#f6f8fa;--border:#d1d9e0;--link:#0969da;--code-bg:rgba(129,139,152,.12);--error:#d1242f`;
-const DARK = `--fg:#e6edf3;--muted:#9198a1;--bg:#0d1117;--subtle:#151b23;--border:#3d444d;--link:#4493f8;--code-bg:rgba(101,108,118,.2);--error:#f85149`;
+const LIGHT = `--fg:#1f2328;--muted:#59636e;--bg:#fff;--subtle:#f6f8fa;--border:#d1d9e0;--link:#0969da;--code-bg:rgba(129,139,152,.12);--error:#d1242f;--comment:#008000`;
+const DARK = `--fg:#e6edf3;--muted:#9198a1;--bg:#0d1117;--subtle:#151b23;--border:#3d444d;--link:#4493f8;--code-bg:rgba(101,108,118,.2);--error:#f85149;--comment:#6a9955`;
 
 function exportCss(o: DocumentParts): string {
   const vars =
@@ -232,6 +232,7 @@ code,kbd,pre,samp{font-family:${fontList(o.font?.code, DEFAULT_CODE)},${JA_CODE_
 pre{padding:16px;overflow:auto;line-height:1.45;background:var(--subtle);border-radius:6px}
 pre>code{padding:0;background:transparent;font-size:100%}
 pre code.hljs{padding:0;background:transparent}
+.hljs-comment{color:var(--comment)}
 table{display:block;width:max-content;max-width:100%;overflow:auto;border-spacing:0;border-collapse:collapse}
 th,td{padding:6px 13px;border:1px solid var(--border)}
 th{font-weight:600;background:var(--subtle)}
