@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - Read-only mode: the lock button on the toolbar (or **MD Studio: Toggle Read-Only Mode**) locks the document; it can still be read, searched, copied and exported. `mdStudio.editor.readOnly` opens files read-only. Files on a read-only file system (e.g. the old side of a Git diff) are always read-only.
 - ` ```jsonc ` and ` ```json5 ` code blocks are highlighted as JSON with comments.
