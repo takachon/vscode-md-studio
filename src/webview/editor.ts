@@ -6,6 +6,7 @@ import { closeLightbox, lightboxOpen, showLightbox } from './lightbox';
 import { toolbarItems } from './toolbar';
 import { installImageMenu } from './imageMenu';
 import { installOutlineSpy } from './outlineSpy';
+import { installPopoverZoom, refreshPopover } from './popoverZoom';
 import { asImage, installInlineImages } from './inlineImages';
 
 interface VditorInstance {
@@ -210,6 +211,7 @@ function create(text: string): void {
       applyReadOnly();
       sendBaseline();
       installOutlineSpy();
+      installPopoverZoom();
       // Load Mermaid in the background so its version is known even without diagrams.
       setTimeout(() => void mermaidReady().catch(() => undefined), 500);
     },
@@ -331,6 +333,7 @@ let zoomSaveTimer: ReturnType<typeof setTimeout> | undefined;
 
 function applyZoom(show: boolean): void {
   document.documentElement.style.setProperty('--md-zoom', String(zoom));
+  refreshPopover();
   if (!show) return;
   if (!zoomBadge) {
     zoomBadge = document.createElement('div');
