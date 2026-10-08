@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.1
 
 - The popover of a code block (move up / down, delete, language) no longer covers the code when the editor is zoomed (Ctrl+wheel). It sits right above the block at any zoom and follows the block when the zoom changes.
 
