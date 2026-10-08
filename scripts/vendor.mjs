@@ -43,6 +43,14 @@ for (const p of [
   cpSync(join(vditor, p), join(vOut, p), { recursive: true });
 }
 
+// highlight.js's JSON grammar already understands // and /* */ comments; register the names
+// people use for JSON with comments. Both Vditor and the export panel load this file.
+const hljs = join(vOut, 'dist/js/highlight.js/highlight.min.js');
+writeFileSync(
+  hljs,
+  readFileSync(hljs, 'utf8') + '\n;window.hljs&&window.hljs.registerAliases(["jsonc","json5"],{languageName:"json"});\n',
+);
+
 // Mermaid: the IIFE build (defines window.mermaid). Vditor's own copy is intentionally not used.
 const mermaid = pkgDir('mermaid');
 mkdirSync(join(out, 'mermaid'), { recursive: true });

@@ -89,6 +89,17 @@ test('sample.md exports to a self-contained file', async () => {
   assert.deepEqual(external, []);
 });
 
+test('jsonc is highlighted in exports, comments in green', async () => {
+  const { result } = await runExport('```jsonc\n{\n  // note\n  "a": 1 /* x */\n}\n```\n');
+  assert.equal((result.html.match(/class="hljs-comment"/g) ?? []).length, 2);
+  assert.match(result.html, /class="hljs-attr"/);
+  const html = exportDocument({ title: 'J', body: result.html, codeCss: { light: '.hljs-comment{color:#6a737d}', dark: '' }, maxWidth: 900, generator: 'test', theme: 'light' });
+  const { page } = await offlinePage(browser, '');
+  await page.setContent(html);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.hljs-comment')).color), 'rgb(0, 128, 0)');
+  await page.close();
+});
+
 test('problems are reported: missing image, broken anchor, bad diagram, remote image', async () => {
   const md = '# T\n\n![x](images/nope.png)\n\n[bad](#nowhere)\n\n```mermaid\nflowchart LR\n  A --> \n```\n\n<img src="https://example.com/x.png">\n<script>alert(1)</script>\n<a href="javascript:alert(1)" onclick="x()">j</a>\n';
   const { result } = await runExport(md);

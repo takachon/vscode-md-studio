@@ -291,3 +291,71 @@ test('the corner button of an image opens the viewer, which keeps the aspect rat
   assert.ok(r.h > 500, 'taller than the webview');
   assert.ok(Math.abs(r.w / r.h - 4) < 0.01, `ratio ${r.w / r.h}`);
 });
+
+test('jsonc code blocks are highlighted, with comments in green', async () => {
+  const md = '```jsonc\n{\n  // line comment\n  "a": 1, /* block */\n  "b": [true, null]\n}\n```\n';
+  const { page } = await openEditor(md);
+  await page.waitForFunction(() => document.querySelectorAll('.vditor-reset .hljs-comment').length === 2, null, { timeout: 10000 });
+  const c = await page.evaluate(() => ({
+    attrs: document.querySelectorAll('.vditor-reset .hljs-attr').length,
+    comment: getComputedStyle(document.querySelector('.vditor-reset .hljs-comment')).color,
+  }));
+  assert.equal(c.attrs, 2);
+  assert.equal(c.comment, 'rgb(0, 128, 0)');
+  await page.evaluate(() => window.__send({ type: 'theme', theme: 'dark' }));
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.vditor-reset .hljs-comment')).color === 'rgb(106, 153, 85)');
+  await page.close();
+});
+
+test('read-only mode blocks typing, checkboxes and resizing, and can be switched off', async () => {
+  const md = 'Hello world\n\n- [ ] task\n\n![red](images/red.png)\n';
+  const { page } = await openEditor(md, { readOnly: true });
+  const state = () => page.evaluate(() => ({
+    body: document.body.classList.contains('md-readonly'),
+    button: document.querySelector('[data-type="md-readonly"]').classList.contains('vditor-menu--current'),
+    editable: document.querySelector('.vditor-wysiwyg > .vditor-reset').getAttribute('contenteditable'),
+  }));
+  assert.deepEqual(await state(), { body: true, button: true, editable: 'false' });
+
+  const p = page.locator('.vditor-reset p', { hasText: 'Hello world' });
+  await p.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' EDITED');
+  await page.locator('.vditor-reset input[type="checkbox"]').click();
+  await page.locator('.vditor-reset img').click({ button: 'right' });
+  const menu = await page.locator('.md-context-menu button').allTextContents();
+  assert.deepEqual(menu, ['View Large', 'Open Image File']);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.__send({ type: 'flush', requestId: 3 }));
+  await page.waitForFunction(() => window.__posted.some((m) => m.type === 'flushed'));
+  assert.equal((await posted(page, 'flushed'))[0].text, undefined);
+  assert.deepEqual(await posted(page, 'edit'), []);
+  assert.equal(await page.locator('.vditor-reset input[type="checkbox"]').isChecked(), false);
+  assert.doesNotMatch(await p.textContent(), /EDITED/);
+
+  // The toolbar button asks the host, which answers with the new state.
+  await page.click('[data-type="md-readonly"]');
+  assert.deepEqual((await posted(page, 'command')).map((m) => m.command), ['readOnly']);
+  await page.evaluate(() => window.__send({ type: 'readOnly', value: false }));
+  await page.waitForFunction(() => !document.body.classList.contains('md-readonly'));
+  assert.deepEqual(await state(), { body: false, button: false, editable: 'true' });
+  await p.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' EDITED');
+  await page.waitForFunction(() => window.__posted.some((m) => m.type === 'edit'), null, { timeout: 5000 });
+  assert.match((await posted(page, 'edit')).at(-1).text, /Hello world EDITED/);
+  await page.close();
+});
+
+test('scroll bars follow the editor theme', async () => {
+  const { page } = await openEditor('# A\n', { theme: 'light' });
+  const scheme = () => page.evaluate(() => ({
+    html: getComputedStyle(document.documentElement).colorScheme,
+    thumb: getComputedStyle(document.body).getPropertyValue('--vscode-scrollbarSlider-background').trim(),
+  }));
+  assert.deepEqual(await scheme(), { html: 'light', thumb: 'rgba(100,100,100,.4)' });
+  await page.evaluate(() => window.__send({ type: 'theme', theme: 'midnight' }));
+  await page.waitForFunction(() => document.body.dataset.mdTheme === 'midnight');
+  assert.deepEqual(await scheme(), { html: 'dark', thumb: 'rgba(121,121,121,.4)' });
+  await page.close();
+});

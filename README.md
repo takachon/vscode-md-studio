@@ -82,6 +82,7 @@ VS Code の自動更新は Marketplace 経由のものなので、共有フォ�
 | 画像を貼る | クリップボードの画像を貼り付け、またはファイルをドロップ → `images/` (設定で変更可) に保存 |
 | 書き出す | ツールバーの ⬆ / エディタ右上のアイコン / コマンド **MD Studio: Export...** (HTML / PDF を選ぶ画面)。**Export to HTML** / **Export to PDF** は形式を選んだ状態で開く |
 | 色 (テーマ) を変える | ツールバー右の 🎨 → 一覧から選ぶ (上下キーで選ぶだけでその場で試せる)。VS Code に合わせる / ライト / 生成り (クリーム色) / セピア / ダーク / ミッドナイト (紺)。ツールバーとアウトラインは本文より一段濃い色になり、編集する場所が見分けやすい。書き出しの色には影響しない |
+| 読み取り専用にする | ツールバーの 🔒 (押すたびに切替) / コマンド **MD Studio: Toggle Read-Only Mode**。閲覧・検索・コピー・書き出し・画像の拡大はでき、文字入力・貼り付け・チェックボックス・画像サイズ変更はできない。いつも読み取り専用で開くには `mdStudio.editor.readOnly`。Git の差分の旧版など書き込めないファイルは常に読み取り専用 |
 | 編集モードを変える | ツールバー右の切替ボタン。WYSIWYG (既定) / 即時描画 (記号がカーソル付近に出る) / 左右分割 |
 | 使っている Mermaid の版 | 右下のステータスバーに `Mermaid 12.0.0`。詳細は **MD Studio: Show Log** |
 
@@ -102,6 +103,7 @@ VS Code の自動更新は Marketplace 経由のものなので、共有フォ�
 | `mdStudio.editor.toolbar` | `true` | ツールバーを表示 |
 | `mdStudio.editor.outline` | `true` | 開いたときに左のアウトラインを表示 |
 | `mdStudio.editor.theme` | `auto` | エディタの色。`auto` = VS Code に合わせる / `light` / `warm` (生成り) / `sepia` / `dark` / `midnight`。ツールバーの 🎨 から選ぶとここに保存される |
+| `mdStudio.editor.readOnly` | `false` | 読み取り専用で開く。ツールバーの 🔒 でその画面だけ切り替えられる |
 | `mdStudio.editor.allowRemoteImages` | `false` | `https:` の画像をエディタで表示する (オンにすると外部通信が発生) |
 | `mdStudio.plantuml.server` | 空 | PlantUML サーバーの URL (`http://サーバー/plantuml` の形。`/svg/...` の手前まで)。空 = PlantUML は描かない |
 | `mdStudio.image.folder` | `images` | 貼り付けた画像の保存先 (Markdown ファイルからの相対) |
@@ -161,6 +163,8 @@ Markdown はコードブロックのまま保存されるので、GitLab / GitHu
 | ` ```abc ` | ABC 記法の楽譜 |
 | ` ```smiles ` | SMILES の化学構造式 (`CC(=O)O`) |
 | ` ```plantuml ` | PlantUML。**`mdStudio.plantuml.server` に社内の PlantUML サーバーを設定したときだけ**描画 (図のテキストがそのサーバーに送られる) |
+
+コードブロックは言語名 (` ```ts ` など) で色分けされます。` ```jsonc ` / ` ```json5 ` はコメント付き JSON として色分けします。コメントはエディタでも書き出しでも緑色です。
 
 図にマウスを乗せると右上の ⤢ で大きく表示できます。書けない内容は赤枠でエラーを表示し、書き出しでは「問題」に出ます。
 
