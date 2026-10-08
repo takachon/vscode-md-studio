@@ -359,3 +359,34 @@ test('scroll bars follow the editor theme', async () => {
   assert.deepEqual(await scheme(), { html: 'dark', thumb: 'rgba(121,121,121,.4)' });
   await page.close();
 });
+
+test('the code-block popover sits above the block at any zoom', async () => {
+  const text = '# T\n\n' + 'para\n\n'.repeat(12) + '```mermaid\nflowchart TB\n    A[x] --> B[y]\n```\n\n' + 'tail\n\n'.repeat(30);
+  const { page } = await openEditor(text, {}, { width: 1100, height: 600 });
+  await page.waitForFunction(() => document.querySelectorAll('.language-mermaid svg').length === 1, null, { timeout: 20000 });
+  const gap = () => page.evaluate(() => {
+    const pop = document.querySelector('.vditor-wysiwyg > .vditor-panel--none').getBoundingClientRect();
+    const pre = document.querySelector('.vditor-wysiwyg__block[data-type="code-block"] > pre').getBoundingClientRect();
+    return { below: pre.top - pop.bottom, left: pop.left - pre.left };
+  });
+  const block = page.locator('.vditor-wysiwyg__block[data-type="code-block"]');
+  for (const zoom of [1, 1.5, 0.8]) {
+    await page.evaluate((z) => document.documentElement.style.setProperty('--md-zoom', String(z)), zoom);
+    await page.locator('.vditor-reset p', { hasText: 'tail' }).first().click();
+    await block.scrollIntoViewIfNeeded();
+    await page.evaluate(() => document.querySelector('.vditor-wysiwyg > .vditor-reset').scrollBy(0, -80));
+    await block.locator('.vditor-wysiwyg__preview').click();
+    await page.waitForFunction(() => document.querySelector('.vditor-wysiwyg > .vditor-panel--none').style.display === 'block');
+    const g = await gap();
+    assert.ok(g.below >= -3 && g.below <= 6, `zoom ${zoom}: popover is ${g.below}px above the code`);
+    assert.ok(Math.abs(g.left) <= 1, `zoom ${zoom}: popover is ${g.left}px off the code's left edge`);
+  }
+  // Ctrl+wheel while the popover is open moves it with the block.
+  await page.mouse.move(600, 300);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up('Control');
+  const g = await gap();
+  assert.ok(g.below >= -3 && g.below <= 6, `after Ctrl+wheel: popover is ${g.below}px above the code`);
+  await page.close();
+});
