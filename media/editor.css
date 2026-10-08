@@ -97,6 +97,9 @@ body.md-dark .md-diagram:not(.language-echarts):not(.language-mindmap):not(.lang
   outline: 1px solid var(--vscode-inputOption-activeBorder, transparent); outline-offset: -1px;
 }
 .vditor-toolbar .vditor-menu--disabled { opacity: .4; }
+/* Zoom level between the zoom buttons; a fixed width keeps the toolbar from shifting. */
+.vditor-toolbar__item > button[data-type="md-zoom-reset"] { width: 44px; }
+.md-zoom-level { font: 12px var(--vscode-font-family, sans-serif); font-variant-numeric: tabular-nums; }
 /* Read-only: no caret in the document. */
 body.md-readonly .vditor-wysiwyg pre.vditor-reset, body.md-readonly .vditor-ir pre.vditor-reset { caret-color: transparent; }
 .vditor-toolbar__divider {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- Zoom buttons and the current zoom level on the right end of the toolbar (− / 100% / +; click the level to reset). Ctrl+wheel and Ctrl+0 still work.
+- Popovers (code block, table, …) follow the block when zooming with Ctrl+wheel or the toolbar, and when the layout above them changes (e.g. a code block above closes its editor). They are placed from the block's position on screen, so they no longer drift onto the block on some VS Code versions.
+
 ## 0.4.1
 
 - The popover of a code block (move up / down, delete, language) no longer covers the code when the editor is zoomed (Ctrl+wheel). It sits right above the block at any zoom and follows the block when the zoom changes.
