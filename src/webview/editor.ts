@@ -3,7 +3,7 @@ import { applyTheme, isDarkTheme } from './themes';
 import { installEditorDiagrams } from './editorDiagrams';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion, type MermaidApi } from './mermaidLoader';
 import { closeLightbox, lightboxOpen, showLightbox } from './lightbox';
-import { toolbarItems } from './toolbar';
+import { toolbarItems, type ZoomAction } from './toolbar';
 import { installImageMenu } from './imageMenu';
 import { installOutlineSpy } from './outlineSpy';
 import { installPopoverZoom, refreshPopover } from './popoverZoom';
@@ -183,7 +183,7 @@ function create(text: string): void {
     toolbar: toolbarItems((command) => {
       sendEdit();
       post({ type: 'command', command });
-    }),
+    }, zoomBy),
     outline: { enable: settings.outline, position: 'left' },
     hint: { emojiPath: `${cdn}/dist/images/emoji` },
     preview: {
@@ -212,6 +212,7 @@ function create(text: string): void {
       sendBaseline();
       installOutlineSpy();
       installPopoverZoom();
+      applyZoom(false);
       // Load Mermaid in the background so its version is known even without diagrams.
       setTimeout(() => void mermaidReady().catch(() => undefined), 500);
     },
@@ -334,7 +335,10 @@ let zoomSaveTimer: ReturnType<typeof setTimeout> | undefined;
 function applyZoom(show: boolean): void {
   document.documentElement.style.setProperty('--md-zoom', String(zoom));
   refreshPopover();
-  if (!show) return;
+  const level = document.querySelector('.vditor-toolbar .md-zoom-level');
+  if (level) level.textContent = `${Math.round(zoom * 100)}%`;
+  // The toolbar shows the level; the badge is for when the toolbar is hidden.
+  if (!show || (level && settings.toolbar)) return;
   if (!zoomBadge) {
     zoomBadge = document.createElement('div');
     zoomBadge.className = 'md-zoom-badge';
@@ -355,10 +359,14 @@ function setZoom(value: number): void {
   zoomSaveTimer = setTimeout(() => post({ type: 'zoom', value: zoom }), 400);
 }
 
+function zoomBy(action: ZoomAction): void {
+  setZoom(action === 'reset' ? 1 : zoom * (action === 'in' ? 1.1 : 1 / 1.1));
+}
+
 window.addEventListener('wheel', (e) => {
   if (!(e.ctrlKey || e.metaKey) || lightboxOpen()) return;
   e.preventDefault();
-  setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+  zoomBy(e.deltaY < 0 ? 'in' : 'out');
 }, { passive: false });
 
 window.addEventListener('keydown', (e) => {

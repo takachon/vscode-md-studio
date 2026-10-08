@@ -21,11 +21,15 @@ import strikethrough from '@vscode/codicons/src/icons/strikethrough.svg';
 import symbolColor from '@vscode/codicons/src/icons/symbol-color.svg';
 import table from '@vscode/codicons/src/icons/table.svg';
 import textSize from '@vscode/codicons/src/icons/text-size.svg';
+import zoomIn from '@vscode/codicons/src/icons/zoom-in.svg';
+import zoomOut from '@vscode/codicons/src/icons/zoom-out.svg';
 import type { ToolbarCommand } from '../protocol';
 
 const builtin = (name: string, icon: string, tip: string) => ({ name, icon, tip, tipPosition: 's' });
 
-export function toolbarItems(run: (command: ToolbarCommand) => void) {
+export type ZoomAction = 'in' | 'out' | 'reset';
+
+export function toolbarItems(run: (command: ToolbarCommand) => void, zoom: (action: ZoomAction) => void) {
   const custom = (name: string, icon: string, tip: string, command: ToolbarCommand) => ({
     name,
     icon,
@@ -62,5 +66,9 @@ export function toolbarItems(run: (command: ToolbarCommand) => void) {
     builtin('edit-mode', editorLayout, 'Editing Mode'),
     custom('md-theme', symbolColor, 'Editor Theme…', 'theme'),
     custom('md-settings', settingsGear, 'Settings', 'settings'),
+    '|',
+    { name: 'md-zoom-out', icon: zoomOut, tip: 'Zoom Out (Ctrl+Wheel)', tipPosition: 's', click: () => zoom('out') },
+    { name: 'md-zoom-reset', icon: '<span class="md-zoom-level">100%</span>', tip: 'Reset Zoom (Ctrl+0)', tipPosition: 's', click: () => zoom('reset') },
+    { name: 'md-zoom-in', icon: zoomIn, tip: 'Zoom In (Ctrl+Wheel)', tipPosition: 's', click: () => zoom('in') },
   ];
 }

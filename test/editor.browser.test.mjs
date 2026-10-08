@@ -360,33 +360,53 @@ test('scroll bars follow the editor theme', async () => {
   await page.close();
 });
 
-test('the code-block popover sits above the block at any zoom', async () => {
-  const text = '# T\n\n' + 'para\n\n'.repeat(12) + '```mermaid\nflowchart TB\n    A[x] --> B[y]\n```\n\n' + 'tail\n\n'.repeat(30);
+test('popovers sit above their block at any zoom and follow zoom changes; toolbar zoom control', async () => {
+  const text = '# T\n\n' + 'para\n\n'.repeat(12) + '```mermaid\nflowchart TB\n    A[x] --> B[y]\n```\n\n'
+    + 'para\n\n'.repeat(4) + '| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n\n' + 'tail\n\n'.repeat(30);
   const { page } = await openEditor(text, {}, { width: 1100, height: 600 });
   await page.waitForFunction(() => document.querySelectorAll('.language-mermaid svg').length === 1, null, { timeout: 20000 });
-  const gap = () => page.evaluate(() => {
+  const level = () => page.locator('.vditor-toolbar .md-zoom-level').textContent();
+  assert.equal(await level(), '100%');
+  const gap = (sel) => page.evaluate((sel) => {
     const pop = document.querySelector('.vditor-wysiwyg > .vditor-panel--none').getBoundingClientRect();
-    const pre = document.querySelector('.vditor-wysiwyg__block[data-type="code-block"] > pre').getBoundingClientRect();
-    return { below: pre.top - pop.bottom, left: pop.left - pre.left };
-  });
-  const block = page.locator('.vditor-wysiwyg__block[data-type="code-block"]');
-  for (const zoom of [1, 1.5, 0.8]) {
-    await page.evaluate((z) => document.documentElement.style.setProperty('--md-zoom', String(z)), zoom);
-    await page.locator('.vditor-reset p', { hasText: 'tail' }).first().click();
-    await block.scrollIntoViewIfNeeded();
-    await page.evaluate(() => document.querySelector('.vditor-wysiwyg > .vditor-reset').scrollBy(0, -80));
-    await block.locator('.vditor-wysiwyg__preview').click();
-    await page.waitForFunction(() => document.querySelector('.vditor-wysiwyg > .vditor-panel--none').style.display === 'block');
-    const g = await gap();
-    assert.ok(g.below >= -3 && g.below <= 6, `zoom ${zoom}: popover is ${g.below}px above the code`);
-    assert.ok(Math.abs(g.left) <= 1, `zoom ${zoom}: popover is ${g.left}px off the code's left edge`);
+    const box = document.querySelector(sel).getBoundingClientRect();
+    return { below: box.top - pop.bottom, left: pop.left - box.left };
+  }, sel);
+  const check = async (sel, what) => {
+    const g = await gap(sel);
+    assert.ok(g.below >= -3 && g.below <= 6, `${what}: popover is ${g.below}px above the block`);
+    assert.ok(Math.abs(g.left) <= 1, `${what}: popover is ${g.left}px off the block's left edge`);
+  };
+  const cases = [
+    { sel: '.vditor-wysiwyg__block[data-type="code-block"] > pre.vditor-wysiwyg__pre', block: '.vditor-wysiwyg__block[data-type="code-block"]', open: (p) => p.locator('.vditor-wysiwyg__block[data-type="code-block"] .vditor-wysiwyg__preview').click() },
+    { sel: '.vditor-reset table', block: '.vditor-reset table', open: (p) => p.locator('.vditor-reset td', { hasText: '3' }).click() },
+  ];
+  for (const c of cases) {
+    for (const zoom of ['in', 'in', 'in', 'out', 'out', 'out', 'out', 'out']) {
+      await page.locator('.vditor-reset p', { hasText: 'tail' }).first().click();
+      await page.locator(c.block).scrollIntoViewIfNeeded();
+      await page.evaluate(() => document.querySelector('.vditor-wysiwyg > .vditor-reset').scrollBy(0, -80));
+      // Vditor places the popover a moment after the click, rewriting data-top.
+      await page.evaluate(() => document.querySelector('.vditor-wysiwyg > .vditor-panel--none').setAttribute('data-top', 'stale'));
+      await c.open(page);
+      await page.waitForFunction(() => {
+        const pop = document.querySelector('.vditor-wysiwyg > .vditor-panel--none');
+        return pop.style.display === 'block' && pop.getAttribute('data-top') !== 'stale';
+      });
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      await check(c.sel, `${c.sel} at ${await level()}`);
+      // Zooming while the popover is open moves it with the block (Ctrl+wheel and the toolbar).
+      await page.mouse.move(600, 300);
+      await page.keyboard.down('Control');
+      await page.mouse.wheel(0, zoom === 'in' ? -100 : 100);
+      await page.keyboard.up('Control');
+      await check(c.sel, `${c.sel} after Ctrl+wheel to ${await level()}`);
+      await page.locator(`.vditor-toolbar button[data-type="md-zoom-${zoom}"]`).click();
+      await check(c.sel, `${c.sel} after the toolbar button to ${await level()}`);
+    }
   }
-  // Ctrl+wheel while the popover is open moves it with the block.
-  await page.mouse.move(600, 300);
-  await page.keyboard.down('Control');
-  await page.mouse.wheel(0, -100);
-  await page.keyboard.up('Control');
-  const g = await gap();
-  assert.ok(g.below >= -3 && g.below <= 6, `after Ctrl+wheel: popover is ${g.below}px above the code`);
+  await page.locator('.vditor-toolbar button[data-type="md-zoom-reset"]').click();
+  assert.equal(await level(), '100%');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--md-zoom')), '1');
   await page.close();
 });
