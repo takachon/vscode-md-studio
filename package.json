@@ -2,7 +2,7 @@
   "name": "md-studio",
   "displayName": "MD Studio",
   "description": "WYSIWYG Markdown editor with a bundled, configurable Mermaid and single-file HTML export. Works fully offline.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "internal",
   "private": true,
   "license": "MIT",
