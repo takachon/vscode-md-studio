@@ -8,7 +8,7 @@ import { editorHtml, exportPanelHtml } from '../../src/html.ts';
 const root = join(import.meta.dirname, '..', '..');
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.json': 'application/json', '.md': 'text/markdown' };
 
-export async function startServer({ mermaidUrl, mermaidConfig = {}, mode = 'wysiwyg', allowRemoteImages = false, theme = 'auto', plantumlServer = '', readOnly = false } = {}) {
+export async function startServer({ mermaidUrl, mermaidConfig = {}, mode = 'wysiwyg', allowRemoteImages = false, theme = 'auto', plantumlServer = '', readOnly = false, toolbar = true } = {}) {
   let origin = '';
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, origin);
@@ -24,7 +24,7 @@ export async function startServer({ mermaidUrl, mermaidConfig = {}, mode = 'wysi
           vditorCdn: `${origin}/media/vendor/vditor`,
           linkBase: `${origin}/test/fixtures/`,
           mode,
-          toolbar: true,
+          toolbar,
           outline: true,
           theme,
           plantumlServer,

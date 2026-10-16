@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Read-only mode no longer fades the document: it stays at full contrast, and the lock button turns into a "Read-only" label instead (a small badge in the top-right corner when the toolbar is hidden; click either to edit).
+
 ## 0.4.2
 
 - Zoom buttons and the current zoom level on the right end of the toolbar (− / 100% / +; click the level to reset). Ctrl+wheel and Ctrl+0 still work.

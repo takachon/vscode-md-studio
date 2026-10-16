@@ -3,6 +3,7 @@ import { applyTheme, isDarkTheme } from './themes';
 import { installEditorDiagrams } from './editorDiagrams';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion, type MermaidApi } from './mermaidLoader';
 import { closeLightbox, lightboxOpen, showLightbox } from './lightbox';
+import lockIcon from '@vscode/codicons/src/icons/lock.svg';
 import { toolbarItems, type ZoomAction } from './toolbar';
 import { installImageMenu } from './imageMenu';
 import { installOutlineSpy } from './outlineSpy';
@@ -136,6 +137,16 @@ let readOnly = settings.readOnly;
 /** Locks or unlocks the document; the host decides (setting, file system, toolbar button). */
 function applyReadOnly(): void {
   document.body.classList.toggle('md-readonly', readOnly);
+  // Without a toolbar the lock button is not there to say so; a badge does instead.
+  if (readOnly && !settings.toolbar && !document.querySelector('.md-readonly-badge')) {
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'md-readonly-badge';
+    badge.title = 'Read-Only Mode (on): click to edit';
+    badge.innerHTML = `${lockIcon}<span>Read-only</span>`;
+    badge.addEventListener('click', () => post({ type: 'command', command: 'readOnly' }));
+    document.body.appendChild(badge);
+  }
   const button = document.querySelector<HTMLElement>('.vditor-toolbar button[data-type="md-readonly"]');
   button?.classList.toggle('vditor-menu--current', readOnly);
   button?.setAttribute('aria-label', readOnly ? 'Read-Only Mode (on): click to edit' : 'Read-Only Mode');

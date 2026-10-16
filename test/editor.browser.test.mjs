@@ -328,8 +328,11 @@ test('read-only mode blocks typing, checkboxes and resizing, and can be switched
     body: document.body.classList.contains('md-readonly'),
     button: document.querySelector('[data-type="md-readonly"]').classList.contains('vditor-menu--current'),
     editable: document.querySelector('.vditor-wysiwyg > .vditor-reset').getAttribute('contenteditable'),
+    // Not faded like Vditor's disabled editor; the lock button says "Read-only" instead.
+    opacity: getComputedStyle(document.querySelector('.vditor-wysiwyg > .vditor-reset')).opacity,
+    label: getComputedStyle(document.querySelector('.md-readonly-label')).display !== 'none',
   }));
-  assert.deepEqual(await state(), { body: true, button: true, editable: 'false' });
+  assert.deepEqual(await state(), { body: true, button: true, editable: 'false', opacity: '1', label: true });
 
   const p = page.locator('.vditor-reset p', { hasText: 'Hello world' });
   await p.click();
@@ -352,12 +355,22 @@ test('read-only mode blocks typing, checkboxes and resizing, and can be switched
   assert.deepEqual((await posted(page, 'command')).map((m) => m.command), ['readOnly']);
   await page.evaluate(() => window.__send({ type: 'readOnly', value: false }));
   await page.waitForFunction(() => !document.body.classList.contains('md-readonly'));
-  assert.deepEqual(await state(), { body: false, button: false, editable: 'true' });
+  assert.deepEqual(await state(), { body: false, button: false, editable: 'true', opacity: '1', label: false });
   await p.click();
   await page.keyboard.press('End');
   await page.keyboard.type(' EDITED');
   await page.waitForFunction(() => window.__posted.some((m) => m.type === 'edit'), null, { timeout: 5000 });
   assert.match((await posted(page, 'edit')).at(-1).text, /Hello world EDITED/);
+  await page.close();
+});
+
+test('read-only without a toolbar shows a badge that asks to edit; source mode is not faded', async () => {
+  const { page } = await openEditor('Hello\n', { readOnly: true, toolbar: false, mode: 'sv' });
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.vditor-sv')).opacity), '1');
+  await page.click('.md-readonly-badge');
+  assert.deepEqual((await posted(page, 'command')).map((m) => m.command), ['readOnly']);
+  await page.evaluate(() => window.__send({ type: 'readOnly', value: false }));
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.md-readonly-badge')).display === 'none');
   await page.close();
 });
 
