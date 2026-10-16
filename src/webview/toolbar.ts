@@ -43,7 +43,7 @@ export function toolbarItems(run: (command: ToolbarCommand) => void, zoom: (acti
     custom('md-open-text', goToFile, 'Open as Text Editor', 'openText'),
     custom('md-save', save, 'Save (Ctrl+S)', 'save'),
     custom('md-export', exportIcon, 'Export (HTML / PDF)…', 'export'),
-    custom('md-readonly', lock, 'Read-Only Mode', 'readOnly'),
+    custom('md-readonly', `${lock}<span class="md-readonly-label">Read-only</span>`, 'Read-Only Mode', 'readOnly'),
     '|',
     builtin('headings', textSize, 'Heading'),
     builtin('bold', bold, 'Bold (Ctrl+B)'),

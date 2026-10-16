@@ -100,8 +100,21 @@ body.md-dark .md-diagram:not(.language-echarts):not(.language-mindmap):not(.lang
 /* Zoom level between the zoom buttons; a fixed width keeps the toolbar from shifting. */
 .vditor-toolbar__item > button[data-type="md-zoom-reset"] { width: 44px; }
 .md-zoom-level { font: 12px var(--vscode-font-family, sans-serif); font-variant-numeric: tabular-nums; }
-/* Read-only: no caret in the document. */
-body.md-readonly .vditor-wysiwyg pre.vditor-reset, body.md-readonly .vditor-ir pre.vditor-reset { caret-color: transparent; }
+/* Read-only: the document stays at full contrast (Vditor fades a disabled editor to 30%) and has no
+   caret; the lock button turns into a "Read-only" label instead, or a badge when the toolbar is hidden. */
+body.md-readonly .vditor-wysiwyg pre.vditor-reset, body.md-readonly .vditor-ir pre.vditor-reset { opacity: 1; caret-color: transparent; }
+body.md-readonly .vditor-sv:disabled { opacity: 1; color: var(--vscode-editor-foreground); background: transparent; }
+.md-readonly-label { display: none; margin-left: 4px; font: 12px var(--vscode-font-family, sans-serif); }
+body.md-readonly .vditor-toolbar__item > button[data-type="md-readonly"] { width: auto; padding: 0 8px !important; }
+body.md-readonly .md-readonly-label { display: inline; }
+.md-readonly-badge {
+  position: fixed; right: 16px; top: 12px; z-index: 50; display: none; gap: 4px; align-items: center;
+  padding: 3px 8px; border-radius: 10px; font: 12px var(--vscode-font-family, sans-serif); cursor: pointer;
+  color: var(--vscode-inputOption-activeForeground, #0066bf); background: var(--vscode-inputOption-activeBackground, rgba(0,122,204,.18));
+  border: 1px solid var(--vscode-inputOption-activeBorder, transparent);
+}
+.md-readonly-badge svg { width: 14px; height: 14px; fill: currentColor; }
+body.md-readonly .md-readonly-badge { display: flex; }
 .vditor-toolbar__divider {
   float: none !important; width: 1px !important; height: 16px !important; margin: 0 6px !important; padding: 0 !important;
   border: 0 !important; background: var(--vscode-widget-border, rgba(128,128,128,.35));
