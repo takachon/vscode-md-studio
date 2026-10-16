@@ -292,6 +292,20 @@ test('the corner button of an image opens the viewer, which keeps the aspect rat
   assert.ok(Math.abs(r.w / r.h - 4) < 0.01, `ratio ${r.w / r.h}`);
 });
 
+test('double-clicking an image opens the viewer, and its close button closes it', async () => {
+  const { page } = await openEditor('# T\n\n![wide](images/wide.png)\n');
+  const img = page.locator('.vditor-reset img').first();
+  await page.waitForFunction(() => document.querySelector('.vditor-reset img')?.naturalWidth > 0);
+  await img.dblclick();
+  await page.waitForSelector('.md-lightbox img.md-lightbox__content');
+  // Not Vditor's own viewer: it closes through inline onclick handlers, which the CSP blocks.
+  assert.equal(await page.locator('.vditor-img').count(), 0);
+  await page.locator('.md-lightbox button[data-act="close"]').click();
+  assert.equal(await page.locator('.md-lightbox').count(), 0);
+  assert.equal(await page.evaluate(() => document.body.style.overflow), '');
+  await page.close();
+});
+
 test('jsonc code blocks are highlighted, with comments in green', async () => {
   const md = '```jsonc\n{\n  // line comment\n  "a": 1, /* block */\n  "b": [true, null]\n}\n```\n';
   const { page } = await openEditor(md);

@@ -200,6 +200,12 @@ function create(text: string): void {
       },
       actions: [],
     },
+    // Vditor's own image viewer (double-click; click in preview mode) closes through inline onclick
+    // attributes, which the webview's CSP blocks, so it could never be closed. Use our lightbox.
+    image: {
+      isPreview: true,
+      preview: (img: HTMLElement) => openImage(img),
+    },
     upload: {
       accept: 'image/*',
       multiple: true,
