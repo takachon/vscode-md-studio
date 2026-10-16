@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3
+
+- Double-clicking an image opens MD Studio's own viewer, which closes with its × button, Esc, or a click outside the image (Vditor's viewer could not be closed).
+- Read-only mode keeps the document at full contrast (it used to be faded). The lock button shows a "Read-only" label, and a "Read-only" badge appears in the top-right corner when the toolbar is hidden.
+
 ## Unreleased
 
 - Read-only mode no longer fades the document: it stays at full contrast, and the lock button turns into a "Read-only" label instead (a small badge in the top-right corner when the toolbar is hidden; click either to edit).
