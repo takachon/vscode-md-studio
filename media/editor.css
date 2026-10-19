@@ -133,6 +133,8 @@ body.md-readonly .md-readonly-badge { display: flex; }
   border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #ccc)) !important; border-radius: 5px !important;
   box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.2)) !important;
 }
+/* The block popover (move up/down, delete, language, table) shows only after a right-click. */
+.vditor-wysiwyg > .vditor-panel--none:not(.md-popover--shown) { visibility: hidden !important; }
 .vditor-outline {
   background: var(--vscode-sideBar-background, var(--vscode-editor-background)) !important;
   border-right: 1px solid var(--vscode-editorGroup-border, transparent) !important;
