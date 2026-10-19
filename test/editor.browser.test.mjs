@@ -405,8 +405,8 @@ test('popovers sit above their block at any zoom and follow zoom changes; toolba
     assert.ok(Math.abs(g.left) <= 1, `${what}: popover is ${g.left}px off the block's left edge`);
   };
   const cases = [
-    { sel: '.vditor-wysiwyg__block[data-type="code-block"] > pre.vditor-wysiwyg__pre', block: '.vditor-wysiwyg__block[data-type="code-block"]', open: (p) => p.locator('.vditor-wysiwyg__block[data-type="code-block"] .vditor-wysiwyg__preview').click() },
-    { sel: '.vditor-reset table', block: '.vditor-reset table', open: (p) => p.locator('.vditor-reset td', { hasText: '3' }).click() },
+    { sel: '.vditor-wysiwyg__block[data-type="code-block"] > pre.vditor-wysiwyg__pre', block: '.vditor-wysiwyg__block[data-type="code-block"]', open: (p) => p.locator('.vditor-wysiwyg__block[data-type="code-block"] .vditor-wysiwyg__preview').click({ button: 'right' }) },
+    { sel: '.vditor-reset table', block: '.vditor-reset table', open: (p) => p.locator('.vditor-reset td', { hasText: '3' }).click({ button: 'right' }) },
   ];
   for (const c of cases) {
     for (const zoom of ['in', 'in', 'in', 'out', 'out', 'out', 'out', 'out']) {
@@ -422,6 +422,7 @@ test('popovers sit above their block at any zoom and follow zoom changes; toolba
       });
       await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       await check(c.sel, `${c.sel} at ${await level()}`);
+      assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.vditor-wysiwyg > .vditor-panel--none')).visibility), 'visible');
       // Zooming while the popover is open moves it with the block (Ctrl+wheel and the toolbar).
       await page.mouse.move(600, 300);
       await page.keyboard.down('Control');
@@ -435,5 +436,51 @@ test('popovers sit above their block at any zoom and follow zoom changes; toolba
   await page.locator('.vditor-toolbar button[data-type="md-zoom-reset"]').click();
   assert.equal(await level(), '100%');
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--md-zoom')), '1');
+  await page.close();
+});
+
+test('the block popover (move up/down, delete) shows on right-click only', async () => {
+  const { page } = await openEditor('first para\n\nsecond para\n');
+  const pop = () => page.evaluate(() => {
+    const p = document.querySelector('.vditor-wysiwyg > .vditor-panel--none');
+    return { display: p.style.display, visible: getComputedStyle(p).visibility === 'visible', up: !!p.querySelector('[data-type="up"]') };
+  });
+  const para = page.locator('.vditor-reset p', { hasText: 'second' });
+  // A left click places the caret; Vditor builds the popover, but it stays hidden.
+  await para.click();
+  await page.waitForFunction(() => document.querySelector('.vditor-wysiwyg > .vditor-panel--none').style.display === 'block');
+  assert.deepEqual(await pop(), { display: 'block', visible: false, up: true });
+  // A right-click shows it above the block that was clicked, without the browser's menu.
+  const shown = () => page.waitForFunction(() => {
+    const p = document.querySelector('.vditor-wysiwyg > .vditor-panel--none');
+    return p.style.display === 'block' && getComputedStyle(p).visibility === 'visible';
+  });
+  await page.locator('.vditor-reset p', { hasText: 'first' }).click({ button: 'right' });
+  await shown();
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const g = await page.evaluate(() => {
+    const p = document.querySelector('.vditor-wysiwyg > .vditor-panel--none').getBoundingClientRect();
+    const b = document.querySelectorAll('.vditor-reset p')[0].getBoundingClientRect();
+    return b.top - p.bottom;
+  });
+  assert.ok(g >= -3 && g <= 6, `popover is ${g}px above the first paragraph`);
+  // Its buttons still work: move the first paragraph down.
+  await page.locator('.vditor-wysiwyg > .vditor-panel--none [data-type="down"]').click();
+  await page.waitForFunction(() => window.__posted.some((m) => m.type === 'edit' && /^second para\n\nfirst para/.test(m.text)), null, { timeout: 5000 });
+  // The next click or key in the document hides it again.
+  await page.locator('.vditor-reset p', { hasText: 'second' }).click({ button: 'right' });
+  await shown();
+  await page.keyboard.press('End');
+  assert.equal((await pop()).visible, false);
+  // Right-clicking selected text keeps the browser's menu (Copy, Paste).
+  const prevented = await page.evaluate(() => {
+    const sel = getSelection();
+    sel.selectAllChildren([...document.querySelectorAll('.vditor-reset p')].find((p) => p.textContent.startsWith('second')));
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 2, clientY: r.top + r.height / 2 });
+    getSelection().anchorNode.parentElement.dispatchEvent(ev);
+    return ev.defaultPrevented;
+  });
+  assert.equal(prevented, false);
   await page.close();
 });

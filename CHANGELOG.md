@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The block popover (move up/down, delete, code-block language, table tools) no longer appears wherever the caret is placed: right-click a block to show it. Any click or key in the document hides it again. Right-clicking selected text still opens the usual menu.
+
 ## 0.4.3
 
 - Double-clicking an image opens MD Studio's own viewer, which closes with its × button, Esc, or a click outside the image (Vditor's viewer could not be closed).

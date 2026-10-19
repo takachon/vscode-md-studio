@@ -8,6 +8,7 @@ import { toolbarItems, type ZoomAction } from './toolbar';
 import { installImageMenu } from './imageMenu';
 import { installOutlineSpy } from './outlineSpy';
 import { installPopoverZoom, refreshPopover } from './popoverZoom';
+import { installPopoverOnDemand } from './popoverOnDemand';
 import { asImage, installInlineImages } from './inlineImages';
 
 interface VditorInstance {
@@ -229,6 +230,7 @@ function create(text: string): void {
       sendBaseline();
       installOutlineSpy();
       installPopoverZoom();
+      installPopoverOnDemand(() => readOnly);
       applyZoom(false);
       // Load Mermaid in the background so its version is known even without diagrams.
       setTimeout(() => void mermaidReady().catch(() => undefined), 500);
