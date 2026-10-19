@@ -4,29 +4,9 @@
 // the block it belongs to. Find the element Vditor placed it for and put the popover above that
 // element's on-screen box instead; scrolling and zooming move it the same way.
 
+import { currentZoom, screenRect } from './zoomRect';
+
 const GAP = 21; // Vditor's distance between the popover and the block (setPopoverPosition)
-
-function currentZoom(): number {
-  const z = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--md-zoom'));
-  return z > 0 ? z : 1;
-}
-
-/**
- * Factor from getBoundingClientRect() of `zoomed` (an element scaled with CSS zoom) or anything
- * inside it to screen pixels. Chromium 128+ already reports the scaled box (1); older ones report
- * it unscaled, the same as offsetWidth, so things placed from it landed short of the element.
- */
-export function rectScale(zoomed: Element): number {
-  if (!(zoomed instanceof HTMLElement)) return 1;
-  return Math.abs(zoomed.getBoundingClientRect().width - zoomed.offsetWidth) < 1 ? currentZoom() : 1;
-}
-
-/** The on-screen box of `el`, which sits in the zoomed element `zoomed`. */
-export function screenRect(el: Element, zoomed: Element): DOMRect {
-  const r = el.getBoundingClientRect();
-  const k = rectScale(zoomed);
-  return k === 1 ? r : new DOMRect(r.x * k, r.y * k, r.width * k, r.height * k);
-}
 
 /** The element Vditor positioned the popover for: it wrote data-top = offsetTop - 21. */
 function findTarget(area: HTMLElement, content: HTMLElement, dataTop: number, rawLeft: number): HTMLElement | undefined {

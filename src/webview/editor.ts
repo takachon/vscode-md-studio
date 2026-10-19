@@ -1,5 +1,6 @@
 import type { EditorSettings, EditorTheme, EditorToHost, HostToEditor } from '../protocol';
 import { applyTheme, isDarkTheme } from './themes';
+import { screenRect } from './zoomRect';
 import { installEditorDiagrams } from './editorDiagrams';
 import { cleanupFailedRender, escapeHtml, loadMermaid, mermaidVersion, type MermaidApi } from './mermaidLoader';
 import { closeLightbox, lightboxOpen, showLightbox } from './lightbox';
@@ -7,7 +8,7 @@ import lockIcon from '@vscode/codicons/src/icons/lock.svg';
 import { toolbarItems, type ZoomAction } from './toolbar';
 import { installImageMenu } from './imageMenu';
 import { installOutlineSpy } from './outlineSpy';
-import { installPopoverZoom, refreshPopover, screenRect } from './popoverZoom';
+import { installPopoverZoom, refreshPopover } from './popoverZoom';
 import { asImage, installInlineImages } from './inlineImages';
 
 interface VditorInstance {

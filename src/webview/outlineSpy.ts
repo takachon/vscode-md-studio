@@ -1,5 +1,5 @@
 // Highlights the outline entry of the section at the top of the editor, like Office Viewer.
-import { screenRect } from './popoverZoom';
+import { screenRect } from './zoomRect';
 
 function editingRoot(): HTMLElement | undefined {
   for (const el of document.querySelectorAll<HTMLElement>('.vditor-wysiwyg > .vditor-reset, .vditor-ir > .vditor-reset')) {
