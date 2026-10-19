@@ -4,12 +4,9 @@
 // the block it belongs to. Find the element Vditor placed it for and put the popover above that
 // element's on-screen box instead; scrolling and zooming move it the same way.
 
-const GAP = 21; // Vditor's distance between the popover and the block (setPopoverPosition)
+import { currentZoom, screenRect } from './zoomRect';
 
-function currentZoom(): number {
-  const z = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--md-zoom'));
-  return z > 0 ? z : 1;
-}
+const GAP = 21; // Vditor's distance between the popover and the block (setPopoverPosition)
 
 /** The element Vditor positioned the popover for: it wrote data-top = offsetTop - 21. */
 function findTarget(area: HTMLElement, content: HTMLElement, dataTop: number, rawLeft: number): HTMLElement | undefined {
@@ -44,9 +41,9 @@ export function installPopoverZoom(): void {
     const width = popover.offsetWidth;
     const maxLeft = area.clientWidth - width;
     if (target?.isConnected) {
-      const box = target.getBoundingClientRect();
+      const box = screenRect(target, content);
       const frame = area.getBoundingClientRect();
-      const view = content.getBoundingClientRect();
+      const view = screenRect(content, content);
       const top = box.top - frame.top - GAP;
       popover.style.top = `${Math.max(-8, Math.min(top, view.bottom - frame.top - GAP))}px`;
       popover.style.left = `${Math.max(0, Math.min(box.left - frame.left, maxLeft))}px`;

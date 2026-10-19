@@ -150,8 +150,11 @@ body.md-readonly .md-readonly-badge { display: flex; }
 .vditor-wysiwyg > .vditor-reset > h1:before, .vditor-wysiwyg > .vditor-reset > h2:before, .vditor-wysiwyg > .vditor-reset > h3:before,
 .vditor-wysiwyg > .vditor-reset > h4:before, .vditor-wysiwyg > .vditor-reset > h5:before, .vditor-wysiwyg > .vditor-reset > h6:before { display: none !important; }
 
-/* Zoom (Ctrl+wheel): scales the document, not the toolbar or outline. */
-.vditor-ir > .vditor-reset, .vditor-wysiwyg > .vditor-reset, .vditor-sv, .vditor-preview > .vditor-reset { zoom: var(--md-zoom, 1); }
+/* Zoom (Ctrl+wheel): scales the document and the outline entries, not the toolbar. The outline
+   widens with them (within limits) so that the headings do not get cut off sooner. */
+.vditor-ir > .vditor-reset, .vditor-wysiwyg > .vditor-reset, .vditor-sv, .vditor-preview > .vditor-reset,
+.vditor-outline__content > ul { zoom: var(--md-zoom, 1); }
+.vditor-outline { width: clamp(180px, calc(260px * var(--md-zoom, 1)), 40vw); }
 .md-zoom-badge {
   position: fixed; right: 16px; bottom: 16px; z-index: 50; display: flex; gap: 8px; align-items: center;
   padding: 6px 10px; border-radius: 6px; font: 12px var(--vscode-font-family, sans-serif);
