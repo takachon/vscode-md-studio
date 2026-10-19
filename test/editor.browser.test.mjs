@@ -116,6 +116,51 @@ test('Ctrl+wheel zooms the document and reports the level', async () => {
   await page.close();
 });
 
+test('the outline zooms with the document and keeps the section being read in view', async () => {
+  const text = Array.from({ length: 40 }, (_, i) => `## Heading ${i}\n\n${'text '.repeat(80)}\n`).join('\n');
+  const { page } = await openEditor(text, {}, { width: 1000, height: 500 });
+  const entry = page.locator('.vditor-outline span[data-target-id]', { hasText: 'Heading 0' }).first();
+  const width = () => page.evaluate(() => document.querySelector('.vditor-outline').getBoundingClientRect().width);
+  const [height, outline] = [(await entry.boundingBox()).height, await width()];
+  await page.locator('.vditor-reset p').first().hover();
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -100);
+  await page.keyboard.up('Control');
+  assert.ok((await entry.boundingBox()).height > height * 1.4, 'outline entries scale');
+  assert.ok(await width() > outline * 1.2, 'outline widens');
+  // Reading further down scrolls the outline to the section's entry.
+  await page.evaluate(() => [...document.querySelectorAll('.vditor-wysiwyg h2')][30].scrollIntoView());
+  await page.waitForFunction(() => document.querySelector('.md-outline--active')?.textContent === 'Heading 30');
+  const visible = await page.evaluate(() => {
+    const a = document.querySelector('.md-outline--active').getBoundingClientRect();
+    const o = document.querySelector('.vditor-outline').getBoundingClientRect();
+    return a.top >= o.top && a.bottom <= o.bottom;
+  });
+  assert.ok(visible, 'active outline entry is scrolled into view');
+  await page.close();
+});
+
+test('the image corner button sits on the image at any zoom and comes back after zooming', async () => {
+  const { page } = await openEditor('# T\n\n![wide](images/wide.png)\n', {}, { width: 900, height: 600 });
+  await page.waitForFunction(() => document.querySelector('.vditor-reset img')?.naturalWidth > 0);
+  const img = page.locator('.vditor-reset img').first();
+  const chip = page.locator('.md-image-expand');
+  const check = async () => {
+    const [i, c] = [await img.boundingBox(), await chip.boundingBox()];
+    assert.equal(await page.locator('.md-image-expand--visible').count(), 1);
+    assert.ok(Math.abs(i.x + i.width - (c.x + c.width) - 6) <= 1 && Math.abs(c.y - i.y - 6) <= 1, `image ${JSON.stringify(i)}, button ${JSON.stringify(c)}`);
+  };
+  await img.hover();
+  await check();
+  // Zoom with the pointer resting on the image; the button follows on the next pointer move.
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -100);
+  await page.keyboard.up('Control');
+  await img.hover({ position: { x: 40, y: 40 } });
+  await check();
+  await page.close();
+});
+
 test('the enlarge button on an image or a diagram opens the viewer; markdown is unchanged', async () => {
   const text = await readFile(join(fixtures, 'sample.md'), 'utf8');
   const { page, norm } = await openEditor(text);

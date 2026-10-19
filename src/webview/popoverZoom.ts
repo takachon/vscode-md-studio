@@ -11,6 +11,23 @@ function currentZoom(): number {
   return z > 0 ? z : 1;
 }
 
+/**
+ * Factor from getBoundingClientRect() of `zoomed` (an element scaled with CSS zoom) or anything
+ * inside it to screen pixels. Chromium 128+ already reports the scaled box (1); older ones report
+ * it unscaled, the same as offsetWidth, so things placed from it landed short of the element.
+ */
+export function rectScale(zoomed: Element): number {
+  if (!(zoomed instanceof HTMLElement)) return 1;
+  return Math.abs(zoomed.getBoundingClientRect().width - zoomed.offsetWidth) < 1 ? currentZoom() : 1;
+}
+
+/** The on-screen box of `el`, which sits in the zoomed element `zoomed`. */
+export function screenRect(el: Element, zoomed: Element): DOMRect {
+  const r = el.getBoundingClientRect();
+  const k = rectScale(zoomed);
+  return k === 1 ? r : new DOMRect(r.x * k, r.y * k, r.width * k, r.height * k);
+}
+
 /** The element Vditor positioned the popover for: it wrote data-top = offsetTop - 21. */
 function findTarget(area: HTMLElement, content: HTMLElement, dataTop: number, rawLeft: number): HTMLElement | undefined {
   // Vditor's offsets are relative to the editing area (a table cell's would be to its table).
@@ -44,9 +61,9 @@ export function installPopoverZoom(): void {
     const width = popover.offsetWidth;
     const maxLeft = area.clientWidth - width;
     if (target?.isConnected) {
-      const box = target.getBoundingClientRect();
+      const box = screenRect(target, content);
       const frame = area.getBoundingClientRect();
-      const view = content.getBoundingClientRect();
+      const view = screenRect(content, content);
       const top = box.top - frame.top - GAP;
       popover.style.top = `${Math.max(-8, Math.min(top, view.bottom - frame.top - GAP))}px`;
       popover.style.left = `${Math.max(0, Math.min(box.left - frame.left, maxLeft))}px`;

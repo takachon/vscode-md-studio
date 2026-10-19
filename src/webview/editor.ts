@@ -7,7 +7,7 @@ import lockIcon from '@vscode/codicons/src/icons/lock.svg';
 import { toolbarItems, type ZoomAction } from './toolbar';
 import { installImageMenu } from './imageMenu';
 import { installOutlineSpy } from './outlineSpy';
-import { installPopoverZoom, refreshPopover } from './popoverZoom';
+import { installPopoverZoom, refreshPopover, screenRect } from './popoverZoom';
 import { asImage, installInlineImages } from './inlineImages';
 
 interface VditorInstance {
@@ -413,7 +413,8 @@ imageExpand.textContent = '⤢';
 document.body.appendChild(imageExpand);
 
 function placeImageExpand(): void {
-  const r = hovered?.isConnected ? hovered.getBoundingClientRect() : undefined;
+  const root = hovered?.isConnected ? hovered.closest('.vditor-reset') : undefined;
+  const r = hovered && root ? screenRect(hovered, root) : undefined;
   if (!r || r.width < 24 || r.height < 24 || lightboxOpen()) {
     imageExpand.classList.remove('md-image-expand--visible');
     return;
@@ -423,7 +424,9 @@ function placeImageExpand(): void {
   imageExpand.classList.add('md-image-expand--visible');
 }
 
-document.addEventListener('mouseover', (e) => {
+// mousemove rather than mouseover: after scrolling or zooming under a still pointer, the button
+// comes back at the image's new place as soon as the pointer moves.
+document.addEventListener('mousemove', (e) => {
   const t = e.target as HTMLElement;
   if (t === imageExpand) return;
   const img = t.closest<HTMLElement>(IMAGE_HOVER) ?? undefined;

@@ -1,4 +1,5 @@
 // Highlights the outline entry of the section at the top of the editor, like Office Viewer.
+import { screenRect } from './popoverZoom';
 
 function editingRoot(): HTMLElement | undefined {
   for (const el of document.querySelectorAll<HTMLElement>('.vditor-wysiwyg > .vditor-reset, .vditor-ir > .vditor-reset')) {
@@ -36,9 +37,11 @@ export function installOutlineSpy(): void {
       if (on) active = s;
     }
     if (active && id !== lastId) {
-      const box = outline.querySelector<HTMLElement>('.vditor-outline__content') ?? outline;
-      const a = active.getBoundingClientRect(), b = box.getBoundingClientRect();
-      if (a.top < b.top || a.bottom > b.bottom) box.scrollTop += a.top - b.top - b.height / 3;
+      // The outline itself scrolls (its content box grows with the entries). The entries are
+      // zoomed with the document; the outline is not.
+      const list = outline.querySelector('.vditor-outline__content > ul') ?? outline;
+      const a = screenRect(active, list), b = outline.getBoundingClientRect();
+      if (a.top < b.top || a.bottom > b.bottom) outline.scrollTop += a.top - b.top - b.height / 3;
     }
     lastId = id;
   };
